@@ -1,7 +1,7 @@
 import { LayoutPanelLeft, Search, Settings2 } from "../../shared/lib/icons";
 import { IconButton } from "../../shared/ui/IconButton";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
-import { GridLayoutPicker } from "../workbench/GridLayoutPicker";
+import { LayoutPicker } from "../workbench/LayoutPicker";
 
 export function TitleBar() {
   const setCommandPaletteOpen = useWorkbenchStore((state) => state.setCommandPaletteOpen);
@@ -25,7 +25,7 @@ export function TitleBar() {
               <Search size={13} />
               <span>搜索或运行命令</span>
             </button>
-            <GridLayoutPicker />
+            <LayoutPicker />
           </>
         ) : null}
         <IconButton label="打开设置" variant="glass" onClick={() => setSettingsOpen(true)}>

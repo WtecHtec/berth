@@ -8,12 +8,29 @@ import type {
   TerminalSession,
   TreeNode,
   WorkbenchGridLayout,
+  WorkbenchLayoutNode,
+  WorkbenchLayoutPreset,
+  WorkbenchPaneDropZone,
   WorkbenchPane,
   WorkspaceRecord,
 } from "../domain/workbench/models";
-import { normalizeGridLayout, resizeGridPanes } from "../domain/workbench/gridLayout";
+import {
+  countLayoutShapePanes,
+  createGridLayout,
+  createPresetLayout,
+  gridLayoutPaneCount,
+  hydrateLayoutShape,
+  layoutPaneIds,
+  layoutPresetPaneCount,
+  movePaneInLayout,
+  updateLayoutRatio,
+} from "../domain/workbench/splitLayout";
 import { validateQuickPhraseDraft } from "../domain/phrases/phraseRules";
 import { loadQuickPhrases, saveQuickPhrases } from "../infrastructure/persistence/quickPhraseRepository";
+import {
+  loadWorkbenchLayout,
+  saveWorkbenchLayout,
+} from "../infrastructure/persistence/workbenchLayoutRepository";
 import { buildAiSessionResumeCommand } from "../infrastructure/terminal/aiSessionCommand";
 import { findTreeNode, setTreeNodeChildren, toggleTreeNode } from "../shared/utils/tree";
 
@@ -27,7 +44,7 @@ interface WorkbenchState {
   tree: TreeNode[];
   selectedTreePath: string;
   panes: WorkbenchPane[];
-  gridLayout: WorkbenchGridLayout;
+  layout: WorkbenchLayoutNode;
   activePaneId: string;
   sessionsCollapsed: boolean;
   filesCollapsed: boolean;
@@ -40,6 +57,7 @@ interface WorkbenchState {
   setWorkspaceError(error: string | null): void;
   loadWorkspace(path: string, children: TreeNode[]): void;
   appendWorkspaceRoot(path: string, children: TreeNode[]): void;
+  removeWorkspaceRoot(path: string): void;
   returnToLauncher(): void;
   toggleTreeNode(id: string): void;
   setNodeChildren(id: string, children: TreeNode[]): void;
@@ -50,7 +68,11 @@ interface WorkbenchState {
   closeTab(paneId: string, tabId: string): void;
   focusPane(paneId: string): void;
   focusSession(sessionId: string): void;
-  setGridLayout(layout: WorkbenchGridLayout): void;
+  applyGridLayout(layout: WorkbenchGridLayout): void;
+  applyLayoutPreset(preset: WorkbenchLayoutPreset): void;
+  movePane(sourcePaneId: string, targetPaneId: string, zone: WorkbenchPaneDropZone): void;
+  setSplitRatio(splitId: string, ratio: number): void;
+  restoreWorkspaceLayout(roots: string[]): void;
   setTabDirty(tabId: string, dirty: boolean): void;
   renameOpenPaths(previousPath: string, nextPath: string): void;
   toggleSessions(): void;
@@ -71,6 +93,7 @@ interface WorkbenchState {
 let paneSequence = 0;
 const emptyPane = (id = `pane-${Date.now()}-${paneSequence++}`): WorkbenchPane => ({ id, tabs: [], activeTabId: "" });
 const initialPane = () => emptyPane("pane-main");
+const initialLayout = (): WorkbenchLayoutNode => ({ type: "pane", paneId: "pane-main" });
 
 function pathName(path: string) {
   return path.split(/[\\/]/u).filter(Boolean).at(-1) ?? path;
@@ -87,6 +110,47 @@ function updateTab(
   }));
 }
 
+function mergePaneTabs(target: WorkbenchPane, sources: WorkbenchPane[]): WorkbenchPane {
+  const knownTabIds = new Set(target.tabs.map((tab) => tab.id));
+  const appendedTabs = sources
+    .flatMap((pane) => pane.tabs)
+    .filter((tab) => {
+      if (knownTabIds.has(tab.id)) return false;
+      knownTabIds.add(tab.id);
+      return true;
+    });
+  return {
+    ...target,
+    tabs: [...target.tabs, ...appendedTabs],
+    activeTabId: target.activeTabId || appendedTabs[0]?.id || "",
+  };
+}
+
+/** Reuses current pane instances and folds removed pane tabs into the main pane. */
+function reconcilePresetPanes(
+  panes: WorkbenchPane[],
+  layout: WorkbenchLayoutNode,
+  activePaneId: string,
+  targetCount: number,
+) {
+  const paneById = new Map(panes.map((pane) => [pane.id, pane]));
+  const visualOrder = layoutPaneIds(layout).flatMap((paneId) => {
+    const pane = paneById.get(paneId);
+    return pane ? [pane] : [];
+  });
+  const activePane = paneById.get(activePaneId) ?? visualOrder[0] ?? panes[0];
+  const ordered = [activePane, ...visualOrder.filter((pane) => pane.id !== activePane.id)];
+  for (const pane of panes) {
+    if (!ordered.some((item) => item.id === pane.id)) ordered.push(pane);
+  }
+  while (ordered.length < targetCount) ordered.push(emptyPane());
+  if (ordered.length === targetCount) return ordered;
+
+  const retained = ordered.slice(0, targetCount);
+  retained[0] = mergePaneTabs(retained[0], ordered.slice(targetCount));
+  return retained;
+}
+
 export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
   workspaceRoots: [],
   workspaceName: "",
@@ -97,7 +161,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
   tree: [],
   selectedTreePath: "",
   panes: [initialPane()],
-  gridLayout: { rows: 1, columns: 1 },
+  layout: initialLayout(),
   activePaneId: "pane-main",
   sessionsCollapsed: false,
   filesCollapsed: false,
@@ -128,7 +192,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
       tree: [root],
       selectedTreePath: path,
       panes: [initialPane()],
-      gridLayout: { rows: 1, columns: 1 },
+      layout: initialLayout(),
       activePaneId: "pane-main",
       pendingTerminalInputs: {},
     });
@@ -153,6 +217,41 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
       };
     });
   },
+  removeWorkspaceRoot(path) {
+    const current = get();
+    if (!current.workspaceRoots.includes(path)) return;
+    if (current.workspaceRoots.length === 1) {
+      get().returnToLauncher();
+      return;
+    }
+    set((state) => {
+      const workspaceRoots = state.workspaceRoots.filter((root) => root !== path);
+      const insideRemovedRoot = (candidate?: string) => {
+        if (!candidate) return false;
+        return candidate === path || candidate.startsWith(`${path}/`) || candidate.startsWith(`${path}\\`);
+      };
+      const panes = state.panes.map((pane) => {
+        const tabs = pane.tabs.filter((tab) => !insideRemovedRoot(tab.filePath));
+        return {
+          ...pane,
+          tabs,
+          activeTabId: tabs.some((tab) => tab.id === pane.activeTabId)
+            ? pane.activeTabId
+            : tabs[0]?.id ?? "",
+        };
+      });
+      saveWorkbenchLayout(workspaceRoots, state.layout);
+      return {
+        workspaceRoots,
+        workspaceName: workspaceRoots.map(pathName).join(", "),
+        tree: state.tree.filter((node) => node.path !== path),
+        selectedTreePath: insideRemovedRoot(state.selectedTreePath)
+          ? workspaceRoots[0]
+          : state.selectedTreePath,
+        panes,
+      };
+    });
+  },
   returnToLauncher() {
     set({
       workspaceRoots: [],
@@ -161,7 +260,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
       tree: [],
       selectedTreePath: "",
       panes: [initialPane()],
-      gridLayout: { rows: 1, columns: 1 },
+      layout: initialLayout(),
       activePaneId: "pane-main",
       workspaceError: null,
       pendingTerminalInputs: {},
@@ -254,26 +353,62 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
       return state;
     });
   },
-  setGridLayout(layout) {
-    const gridLayout = normalizeGridLayout(layout);
+  applyGridLayout(grid) {
     set((state) => {
-      const panes = resizeGridPanes(state.panes, gridLayout, emptyPane);
-      const activePaneId = panes.some((pane) => pane.id === state.activePaneId)
-        ? state.activePaneId
-        : panes[panes.length - 1].id;
-      const retainedSessionIds = new Set(panes.flatMap((pane) => (
-        pane.tabs.flatMap((tab) => tab.sessionId ? [tab.sessionId] : [])
-      )));
-      const pendingTerminalInputs = Object.fromEntries(Object.entries(state.pendingTerminalInputs)
-        .filter(([sessionId]) => retainedSessionIds.has(sessionId)));
+      const panes = reconcilePresetPanes(
+        state.panes,
+        state.layout,
+        state.activePaneId,
+        gridLayoutPaneCount(grid),
+      );
+      const layout = createGridLayout(grid, panes.map((pane) => pane.id));
+      saveWorkbenchLayout(state.workspaceRoots, layout);
+      return { layout, panes, activePaneId: panes[0].id };
+    });
+  },
+  applyLayoutPreset(preset) {
+    set((state) => {
+      const panes = reconcilePresetPanes(
+        state.panes,
+        state.layout,
+        state.activePaneId,
+        layoutPresetPaneCount(preset),
+      );
+      const layout = createPresetLayout(preset, panes.map((pane) => pane.id));
+      saveWorkbenchLayout(state.workspaceRoots, layout);
       return {
-        gridLayout,
+        layout,
         panes,
-        activePaneId,
-        sessions: state.sessions.filter((session) => retainedSessionIds.has(session.id)),
-        pendingTerminalInputs,
+        activePaneId: panes[0].id,
       };
     });
+  },
+  movePane(sourcePaneId, targetPaneId, zone) {
+    if (sourcePaneId === targetPaneId) return;
+    set((state) => {
+      const layout = movePaneInLayout(state.layout, sourcePaneId, targetPaneId, zone);
+      if (layout === state.layout) return state;
+      saveWorkbenchLayout(state.workspaceRoots, layout);
+      return { layout, activePaneId: sourcePaneId };
+    });
+  },
+  setSplitRatio(splitId, ratio) {
+    set((state) => {
+      const layout = updateLayoutRatio(state.layout, splitId, ratio);
+      if (layout === state.layout) return state;
+      saveWorkbenchLayout(state.workspaceRoots, layout);
+      return { layout };
+    });
+  },
+  restoreWorkspaceLayout(roots) {
+    const shape = loadWorkbenchLayout(roots);
+    if (!shape) return;
+    const paneCount = countLayoutShapePanes(shape);
+    const panes = Array.from({ length: paneCount }, (_, index) => (
+      index === 0 ? initialPane() : emptyPane()
+    ));
+    const layout = hydrateLayoutShape(shape, panes.map((pane) => pane.id));
+    set({ panes, layout, activePaneId: panes[0].id });
   },
   setTabDirty(tabId, dirty) {
     set((state) => ({ panes: updateTab(state.panes, tabId, (tab) => ({ ...tab, dirty })) }));

@@ -70,10 +70,35 @@ export interface WorkbenchPane {
   activeTabId: string;
 }
 
+export type WorkbenchLayoutAxis = "horizontal" | "vertical";
+export type WorkbenchPaneDropZone = "left" | "right" | "top" | "bottom" | "center";
+export type WorkbenchLayoutPreset =
+  | "single"
+  | "columns"
+  | "rows"
+  | "main-left"
+  | "main-right"
+  | "main-top"
+  | "quad";
+
 export interface WorkbenchGridLayout {
   rows: number;
   columns: number;
 }
+
+/** A recursive split tree keeps layout independent from pane business state. */
+export type WorkbenchLayoutNode =
+  | {
+      type: "pane";
+      paneId: string;
+    }
+  | {
+      type: "split";
+      id: string;
+      axis: WorkbenchLayoutAxis;
+      ratio: number;
+      children: [WorkbenchLayoutNode, WorkbenchLayoutNode];
+    };
 
 export interface QuickPhrase {
   id: string;

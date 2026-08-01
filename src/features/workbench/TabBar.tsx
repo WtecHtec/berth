@@ -1,8 +1,14 @@
-import { FileCode2, FileText, SquareTerminal, X } from "../../shared/lib/icons";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import { FileCode2, FileText, GripVertical, SquareTerminal, X } from "../../shared/lib/icons";
 import type { WorkbenchPane } from "../../domain/workbench/models";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
 
-export function TabBar({ pane }: { pane: WorkbenchPane }) {
+interface TabBarProps {
+  pane: WorkbenchPane;
+  onPaneDragStart(paneId: string, event: ReactPointerEvent<HTMLButtonElement>): void;
+}
+
+export function TabBar({ pane, onPaneDragStart }: TabBarProps) {
   const activateTab = useWorkbenchStore((state) => state.activateTab);
   const closeTab = useWorkbenchStore((state) => state.closeTab);
 
@@ -40,7 +46,14 @@ export function TabBar({ pane }: { pane: WorkbenchPane }) {
           );
         })}
       </div>
-      <button type="button" className="tabbar__more" aria-label="标签页菜单">•••</button>
+      <button
+        type="button"
+        className="pane-drag-handle"
+        aria-label="拖动面板"
+        onPointerDown={(event) => onPaneDragStart(pane.id, event)}
+      >
+        <GripVertical size={14} />
+      </button>
     </div>
   );
 }

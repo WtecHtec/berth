@@ -40,9 +40,10 @@
   .terminal-cursor { animation: none; }
   .ai-session-section.is-refreshing .ai-session-refresh-icon { opacity: .55; }
   .ai-session-section.is-refreshing .ai-session-refresh-track span { transform: none; opacity: .8; }
+  .pane-drop-preview { animation: none; }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .titlebar, .sessions-rail, .file-explorer, .command-palette, .settings-sheet { backdrop-filter: none; -webkit-backdrop-filter: none; background: #191d22; }
+  .titlebar, .sessions-rail, .file-explorer, .command-palette, .settings-sheet, .layout-popover, .pane-drag-ghost { backdrop-filter: none; -webkit-backdrop-filter: none; background: #191d22; }
 }
 @media (prefers-contrast: more) {
   :root { --hairline: rgba(255,255,255,.22); --text-2: #c8cdd3; --text-3: #a0a8b1; }

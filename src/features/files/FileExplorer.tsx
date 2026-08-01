@@ -6,6 +6,7 @@ import { useFileSearch } from "../../hooks/useFileSearch";
 import { useAppendWorkspaceFolder } from "../../hooks/useAppendWorkspaceFolder";
 import { IconButton } from "../../shared/ui/IconButton";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
+import { rememberWorkspace } from "../../infrastructure/persistence/workspaceHistory";
 import { TreeRow } from "./TreeRow";
 import { FileTreeContextMenu } from "./FileTreeContextMenu";
 import { FileNameDialog } from "./FileNameDialog";
@@ -19,6 +20,8 @@ export function FileExplorer({ collapsed }: FileExplorerProps) {
   const tree = useWorkbenchStore((state) => state.tree);
   const rootCount = useWorkbenchStore((state) => state.workspaceRoots.length);
   const openFilePath = useWorkbenchStore((state) => state.openFilePath);
+  const removeWorkspaceRoot = useWorkbenchStore((state) => state.removeWorkspaceRoot);
+  const setRecentWorkspaces = useWorkbenchStore((state) => state.setRecentWorkspaces);
   const actions = useFileTreeActions();
   const appendFolder = useAppendWorkspaceFolder();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -38,6 +41,13 @@ export function FileExplorer({ collapsed }: FileExplorerProps) {
 
   const openSearchResult = (result: TreeNode) => {
     openFilePath(result.path, result.name);
+  };
+
+  const removeRoot = (node: TreeNode) => {
+    removeWorkspaceRoot(node.path);
+    const remainingRoots = useWorkbenchStore.getState().workspaceRoots;
+    if (remainingRoots.length > 0) setRecentWorkspaces(rememberWorkspace(remainingRoots));
+    setContextMenu(null);
   };
 
   return (
@@ -112,6 +122,7 @@ export function FileExplorer({ collapsed }: FileExplorerProps) {
           onRename={() => beginNameOperation("rename", contextMenu.node)}
           onCreateTerminal={() => { actions.createTerminal(contextMenu.node); setContextMenu(null); }}
           onReveal={() => { void actions.reveal(contextMenu.node); setContextMenu(null); }}
+          onRemoveRoot={() => removeRoot(contextMenu.node)}
         />
       ) : null}
       {nameDialog ? (

@@ -12,6 +12,7 @@ export function useWorkspaceLauncher() {
   const setWorkspaceError = useWorkbenchStore((state) => state.setWorkspaceError);
   const loadWorkspace = useWorkbenchStore((state) => state.loadWorkspace);
   const appendWorkspaceRoot = useWorkbenchStore((state) => state.appendWorkspaceRoot);
+  const restoreWorkspaceLayout = useWorkbenchStore((state) => state.restoreWorkspaceLayout);
 
   useEffect(() => {
     setRecentWorkspaces(loadWorkspaceHistory());
@@ -29,12 +30,13 @@ export function useWorkspaceLauncher() {
         const children = await desktopGateway.listDirectory(path);
         appendWorkspaceRoot(path, children);
       }
+      restoreWorkspaceLayout(paths);
       setRecentWorkspaces(rememberWorkspace(paths));
     } catch (cause) {
       setWorkspaceLoading(false);
       setWorkspaceError(cause instanceof Error ? cause.message : String(cause));
     }
-  }, [appendWorkspaceRoot, loadWorkspace, setRecentWorkspaces, setWorkspaceError, setWorkspaceLoading]);
+  }, [appendWorkspaceRoot, loadWorkspace, restoreWorkspaceLayout, setRecentWorkspaces, setWorkspaceError, setWorkspaceLoading]);
 
   const openPath = useCallback((path: string) => openPaths([path]), [openPaths]);
 

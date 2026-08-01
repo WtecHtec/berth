@@ -15,8 +15,9 @@ export function RunningSessionsRail({ collapsed }: RunningSessionsRailProps) {
   const focusSession = useWorkbenchStore((state) => state.focusSession);
   const createTerminal = useWorkbenchStore((state) => state.createTerminal);
   const panes = useWorkbenchStore((state) => state.panes);
-  const activeSessionId = panes.flatMap((pane) => pane.tabs)
-    .find((tab) => panes.some((pane) => pane.activeTabId === tab.id))?.sessionId;
+  const activePaneId = useWorkbenchStore((state) => state.activePaneId);
+  const activePane = panes.find((pane) => pane.id === activePaneId);
+  const activeSessionId = activePane?.tabs.find((tab) => tab.id === activePane.activeTabId)?.sessionId;
 
   return (
     <aside className={`sessions-rail ${collapsed ? "is-collapsed" : ""}`} aria-label="运行中的终端">

@@ -3,7 +3,7 @@ import { FileExplorer } from "../features/files/FileExplorer";
 import { RunningSessionsRail } from "../features/sessions/RunningSessionsRail";
 import { StatusBar } from "../features/status/StatusBar";
 import { TitleBar } from "../features/titlebar/TitleBar";
-import { WorkbenchGrid } from "../features/workbench/WorkbenchGrid";
+import { WorkbenchLayout } from "../features/workbench/WorkbenchLayout";
 import { LaunchPage } from "../features/launcher/LaunchPage";
 import { useWorkbenchStore } from "../store/useWorkbenchStore";
 
@@ -28,7 +28,7 @@ export function AppShell() {
         <ActivityRail />
         <RunningSessionsRail collapsed={sessionsCollapsed} />
         <FileExplorer collapsed={filesCollapsed} />
-        <WorkbenchGrid />
+        <WorkbenchLayout />
       </div>
       <StatusBar />
     </main>

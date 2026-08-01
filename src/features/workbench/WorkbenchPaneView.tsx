@@ -1,3 +1,4 @@
+import type { PointerEvent as ReactPointerEvent } from "react";
 import type { WorkbenchPane } from "../../domain/workbench/models";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
 import { FileViewer } from "../files/FileViewer";
@@ -5,7 +6,12 @@ import { TerminalPanel } from "../terminal/TerminalPanel";
 import { TabBar } from "./TabBar";
 import { FileText, SquareTerminal } from "../../shared/lib/icons";
 
-export function WorkbenchPaneView({ pane }: { pane: WorkbenchPane }) {
+interface WorkbenchPaneViewProps {
+  pane: WorkbenchPane;
+  onPaneDragStart(paneId: string, event: ReactPointerEvent<HTMLButtonElement>): void;
+}
+
+export function WorkbenchPaneView({ pane, onPaneDragStart }: WorkbenchPaneViewProps) {
   const sessions = useWorkbenchStore((state) => state.sessions);
   const activePaneId = useWorkbenchStore((state) => state.activePaneId);
   const focusPane = useWorkbenchStore((state) => state.focusPane);
@@ -27,7 +33,7 @@ export function WorkbenchPaneView({ pane }: { pane: WorkbenchPane }) {
 
   return (
     <article className="workbench-pane" onPointerDown={() => focusPane(pane.id)}>
-      <TabBar pane={pane} />
+      <TabBar pane={pane} onPaneDragStart={onPaneDragStart} />
       <div className="workbench-pane__content">
         {pane.tabs.map((tab) => (
           <div

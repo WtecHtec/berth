@@ -1,4 +1,4 @@
-import { FilePlus2, FolderSearch, Pencil, SquareTerminal } from "lucide-react";
+import { FilePlus2, FolderMinus, FolderSearch, Pencil, SquareTerminal } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useEffect } from "react";
 import type { TreeNode } from "../../domain/workbench/models";
@@ -12,6 +12,7 @@ interface FileTreeContextMenuProps {
   onRename(): void;
   onCreateTerminal(): void;
   onReveal(): void;
+  onRemoveRoot(): void;
 }
 
 export function FileTreeContextMenu({
@@ -23,6 +24,7 @@ export function FileTreeContextMenu({
   onRename,
   onCreateTerminal,
   onReveal,
+  onRemoveRoot,
 }: FileTreeContextMenuProps) {
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -33,7 +35,8 @@ export function FileTreeContextMenu({
   }, [onClose]);
 
   const left = Math.max(8, Math.min(x, window.innerWidth - 190));
-  const top = Math.max(8, Math.min(y, window.innerHeight - 166));
+  const menuHeight = node.kind === "root" ? 202 : 166;
+  const top = Math.max(8, Math.min(y, window.innerHeight - menuHeight));
 
   return createPortal(
     <div className="context-menu-layer" role="presentation" onMouseDown={onClose}>
@@ -49,6 +52,14 @@ export function FileTreeContextMenu({
         <span className="context-menu-separator" />
         <button type="button" role="menuitem" onClick={onCreateTerminal}><SquareTerminal size={14} />在此处创建终端</button>
         <button type="button" role="menuitem" onClick={onReveal}><FolderSearch size={14} />在访达中打开</button>
+        {node.kind === "root" ? (
+          <>
+            <span className="context-menu-separator" />
+            <button type="button" role="menuitem" className="file-context-menu__remove" onClick={onRemoveRoot}>
+              <FolderMinus size={14} />从当前窗口移除
+            </button>
+          </>
+        ) : null}
       </div>
     </div>,
     document.body,
