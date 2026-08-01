@@ -61,7 +61,9 @@ export function TerminalSurface({ session, selected = false }: TerminalSurfacePr
         allowProposedApi: false,
         cursorBlink: true,
         cursorStyle: "bar",
-        scrollback: 5000,
+        // Keep enough interactive history without multiplying a large buffer
+        // across every terminal in a multi-pane workspace.
+        scrollback: 2000,
         fontFamily: "SFMono-Regular, SF Mono, Menlo, monospace",
         fontSize: 13,
         lineHeight: 1.5,

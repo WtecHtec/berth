@@ -2,6 +2,7 @@ mod commands;
 mod terminal;
 
 use commands::preview::PreviewServerRegistry;
+use tauri::Manager;
 use terminal::TerminalRegistry;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -10,6 +11,15 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(TerminalRegistry::default())
         .manage(PreviewServerRegistry::default())
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                let label = window.label();
+                window.state::<TerminalRegistry>().terminate_window(label);
+                window
+                    .state::<PreviewServerRegistry>()
+                    .terminate_window(label);
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::ai_sessions::list_ai_sessions,
             commands::files::list_directory,

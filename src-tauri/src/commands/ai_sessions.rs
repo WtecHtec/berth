@@ -161,7 +161,7 @@ fn list_claude_sessions(root: &str, limit: usize) -> Result<Vec<AiSessionSummary
                 .then_some((path, modified_millis(&metadata)))
         })
         .collect::<Vec<_>>();
-    files.sort_unstable_by(|left, right| right.1.cmp(&left.1));
+    files.sort_unstable_by_key(|entry| std::cmp::Reverse(entry.1));
 
     Ok(files
         .into_iter()
@@ -255,7 +255,7 @@ pub fn list_ai_sessions(roots: Vec<String>, limit_per_provider: usize) -> AiSess
             Err(error) => warnings.push(error),
         }
     }
-    sessions.sort_unstable_by(|left, right| right.updated_at.cmp(&left.updated_at));
+    sessions.sort_unstable_by_key(|session| std::cmp::Reverse(session.updated_at));
     AiSessionListResponse { sessions, warnings }
 }
 

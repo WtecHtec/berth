@@ -13,10 +13,13 @@ use std::{
     sync::Arc,
     thread,
 };
-use tauri::{ipc::Channel, State};
+use tauri::{ipc::Channel, State, Window};
 use uuid::Uuid;
 
+const MAX_TERMINAL_PROCESSES: usize = 16;
+
 struct TerminalProcess {
+    owner_window: String,
     writer: File,
     child: Child,
 }
@@ -24,6 +27,40 @@ struct TerminalProcess {
 #[derive(Default)]
 pub struct TerminalRegistry {
     processes: Arc<Mutex<HashMap<String, TerminalProcess>>>,
+}
+
+fn terminate_processes(processes: impl IntoIterator<Item = TerminalProcess>) {
+    for mut terminal in processes {
+        let _ = terminal.child.kill();
+        let _ = terminal.child.wait();
+    }
+}
+
+impl TerminalRegistry {
+    /** Releases PTYs even when a native window closes before React cleanup runs. */
+    pub fn terminate_window(&self, window_label: &str) {
+        let owned_processes = {
+            let mut processes = self.processes.lock();
+            let ids = processes
+                .iter()
+                .filter(|(_, terminal)| terminal.owner_window == window_label)
+                .map(|(id, _)| id.clone())
+                .collect::<Vec<_>>();
+            ids.into_iter()
+                .filter_map(|id| processes.remove(&id))
+                .collect::<Vec<_>>()
+        };
+        terminate_processes(owned_processes);
+    }
+}
+
+impl Drop for TerminalRegistry {
+    fn drop(&mut self) {
+        // Tauri may close the window while PTY reader threads are still alive.
+        // Drain ownership first, then terminate outside the registry lock.
+        let processes = std::mem::take(&mut *self.processes.lock());
+        terminate_processes(processes.into_values());
+    }
 }
 
 #[derive(Clone, Serialize)]
@@ -53,10 +90,24 @@ fn resolve_cwd(path: &str) -> std::path::PathBuf {
  */
 #[tauri::command]
 pub fn spawn_terminal(
+    window: Window,
     cwd: String,
     channel: Channel<TerminalEvent>,
     registry: State<'_, TerminalRegistry>,
 ) -> Result<String, String> {
+    let owner_window = window.label().to_string();
+    let active_in_window = registry
+        .processes
+        .lock()
+        .values()
+        .filter(|terminal| terminal.owner_window == owner_window)
+        .count();
+    if active_in_window >= MAX_TERMINAL_PROCESSES {
+        return Err(format!(
+            "单个窗口最多同时运行 {MAX_TERMINAL_PROCESSES} 个终端，请先关闭不再使用的终端"
+        ));
+    }
+
     let mut master_fd = -1;
     let mut slave_fd = -1;
     let open_result = unsafe {
@@ -133,11 +184,17 @@ pub fn spawn_terminal(
         .map_err(|error| format!("无法克隆终端句柄：{error}"))?;
     let terminal_id = Uuid::new_v4().to_string();
 
-    registry
-        .processes
-        .lock()
-        .insert(terminal_id.clone(), TerminalProcess { writer, child });
+    registry.processes.lock().insert(
+        terminal_id.clone(),
+        TerminalProcess {
+            owner_window,
+            writer,
+            child,
+        },
+    );
 
+    let process_registry = Arc::clone(&registry.processes);
+    let reader_terminal_id = terminal_id.clone();
     thread::spawn(move || {
         let mut buffer = vec![0_u8; 8192];
         loop {
@@ -157,7 +214,17 @@ pub fn spawn_terminal(
                 Err(_) => break,
             }
         }
-        let _ = channel.send(TerminalEvent::Exit { code: None });
+
+        // Reap naturally exited shells immediately. Killing is harmless if the
+        // child has already exited and prevents a broken PTY reader from leaving
+        // a live process behind.
+        drop(reader);
+        let terminal = process_registry.lock().remove(&reader_terminal_id);
+        let code = terminal.and_then(|mut terminal| {
+            let _ = terminal.child.kill();
+            terminal.child.wait().ok().and_then(|status| status.code())
+        });
+        let _ = channel.send(TerminalEvent::Exit { code });
     });
 
     Ok(terminal_id)
@@ -207,11 +274,11 @@ pub fn kill_terminal(
     terminal_id: String,
     registry: State<'_, TerminalRegistry>,
 ) -> Result<(), String> {
-    let mut terminal = registry
-        .processes
-        .lock()
-        .remove(&terminal_id)
-        .ok_or("终端不存在")?;
+    let Some(mut terminal) = registry.processes.lock().remove(&terminal_id) else {
+        // Cleanup is intentionally idempotent: a naturally exited shell may
+        // already have been reaped by its PTY reader thread.
+        return Ok(());
+    };
     terminal
         .child
         .kill()

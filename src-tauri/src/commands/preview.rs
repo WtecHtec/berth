@@ -3,24 +3,57 @@ use serde::Serialize;
 use std::{
     collections::HashMap,
     fs,
-    io::{ErrorKind, Read, Write},
-    net::{TcpListener, TcpStream},
+    io::{Read, Write},
+    net::{SocketAddr, TcpListener, TcpStream},
     path::{Path, PathBuf},
     sync::mpsc::{self, Sender},
     thread,
-    time::Duration,
 };
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager, State, Window};
+
+struct PreviewServerHandle {
+    owner_window: String,
+    shutdown_sender: Sender<()>,
+    address: SocketAddr,
+}
+
+impl PreviewServerHandle {
+    fn shutdown(self) {
+        let _ = self.shutdown_sender.send(());
+        // Wake the blocking accept call so its thread can observe shutdown.
+        let _ = TcpStream::connect(self.address);
+    }
+}
 
 #[derive(Default)]
 pub struct PreviewServerRegistry {
-    shutdown_senders: Mutex<HashMap<String, Sender<()>>>,
+    servers: Mutex<HashMap<String, PreviewServerHandle>>,
+}
+
+impl PreviewServerRegistry {
+    /** Stops preview threads owned by a window that is being destroyed. */
+    pub fn terminate_window(&self, window_label: &str) {
+        let owned_servers = {
+            let mut servers = self.servers.lock();
+            let ids = servers
+                .iter()
+                .filter(|(_, server)| server.owner_window == window_label)
+                .map(|(id, _)| id.clone())
+                .collect::<Vec<_>>();
+            ids.into_iter()
+                .filter_map(|id| servers.remove(&id))
+                .collect::<Vec<_>>()
+        };
+        for server in owned_servers {
+            server.shutdown();
+        }
+    }
 }
 
 impl Drop for PreviewServerRegistry {
     fn drop(&mut self) {
-        for (_, sender) in self.shutdown_senders.get_mut().drain() {
-            let _ = sender.send(());
+        for (_, server) in self.servers.get_mut().drain() {
+            server.shutdown();
         }
     }
 }
@@ -105,6 +138,40 @@ fn response(
     }
 }
 
+fn response_file(stream: &mut TcpStream, path: &Path, head_only: bool) {
+    let Ok(mut file) = fs::File::open(path) else {
+        response(
+            stream,
+            "404 Not Found",
+            "text/plain; charset=utf-8",
+            b"Not found",
+            head_only,
+        );
+        return;
+    };
+    let Ok(metadata) = file.metadata() else {
+        response(
+            stream,
+            "404 Not Found",
+            "text/plain; charset=utf-8",
+            b"Not found",
+            head_only,
+        );
+        return;
+    };
+    let headers = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n",
+        content_type(path),
+        metadata.len(),
+    );
+    let _ = stream.write_all(headers.as_bytes());
+    if !head_only {
+        // Stream large assets directly instead of materializing an entire image,
+        // audio file, or video in the Rust process.
+        let _ = std::io::copy(&mut file, stream);
+    }
+}
+
 fn requested_file(root: &Path, request_path: &str) -> Option<PathBuf> {
     let decoded = decode_url_path(request_path)?;
     if decoded.contains('\0') {
@@ -170,16 +237,7 @@ fn handle_connection(mut stream: TcpStream, root: &Path, entry_path: &Path, entr
         );
         return;
     };
-    match fs::read(&path) {
-        Ok(body) => response(&mut stream, "200 OK", content_type(&path), &body, head_only),
-        Err(_) => response(
-            &mut stream,
-            "404 Not Found",
-            "text/plain; charset=utf-8",
-            b"Not found",
-            head_only,
-        ),
-    }
+    response_file(&mut stream, &path, head_only);
 }
 
 #[tauri::command]
@@ -197,6 +255,7 @@ pub fn allow_preview_asset(path: String, app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub fn start_html_preview(
+    window: Window,
     path: String,
     content: String,
     registry: State<'_, PreviewServerRegistry>,
@@ -214,33 +273,28 @@ pub fn start_html_preview(
         .map_err(|error| format!("无法读取 HTML 文件目录：{error}"))?;
     let listener = TcpListener::bind("127.0.0.1:0")
         .map_err(|error| format!("无法启动 HTML 预览服务：{error}"))?;
-    listener
-        .set_nonblocking(true)
-        .map_err(|error| format!("无法配置 HTML 预览服务：{error}"))?;
     let address = listener
         .local_addr()
         .map_err(|error| format!("无法读取 HTML 预览地址：{error}"))?;
 
     let id = uuid::Uuid::new_v4().to_string();
     let (shutdown_sender, shutdown_receiver) = mpsc::channel();
-    registry
-        .shutdown_senders
-        .lock()
-        .insert(id.clone(), shutdown_sender);
+    registry.servers.lock().insert(
+        id.clone(),
+        PreviewServerHandle {
+            owner_window: window.label().to_string(),
+            shutdown_sender,
+            address,
+        },
+    );
 
     thread::spawn(move || {
         let entry_content = content.into_bytes();
-        loop {
+        while let Ok((stream, _)) = listener.accept() {
             if shutdown_receiver.try_recv().is_ok() {
                 break;
             }
-            match listener.accept() {
-                Ok((stream, _)) => handle_connection(stream, &root, &entry_path, &entry_content),
-                Err(error) if error.kind() == ErrorKind::WouldBlock => {
-                    thread::sleep(Duration::from_millis(12));
-                }
-                Err(_) => break,
-            }
+            handle_connection(stream, &root, &entry_path, &entry_content);
         }
     });
 
@@ -252,8 +306,8 @@ pub fn start_html_preview(
 
 #[tauri::command]
 pub fn stop_html_preview(preview_id: String, registry: State<'_, PreviewServerRegistry>) {
-    if let Some(sender) = registry.shutdown_senders.lock().remove(&preview_id) {
-        let _ = sender.send(());
+    if let Some(server) = registry.servers.lock().remove(&preview_id) {
+        server.shutdown();
     }
 }
 
@@ -312,6 +366,28 @@ mod tests {
             content_type(Path::new("style.css")),
             "text/css; charset=utf-8"
         );
+    }
+
+    #[test]
+    fn shutdown_wakes_a_blocking_preview_listener() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind preview listener");
+        let address = listener
+            .local_addr()
+            .expect("read preview listener address");
+        let (shutdown_sender, shutdown_receiver) = mpsc::channel();
+        let server = thread::spawn(move || {
+            listener.accept().expect("accept shutdown wakeup");
+            shutdown_receiver.try_recv().is_ok()
+        });
+
+        PreviewServerHandle {
+            owner_window: "test".to_string(),
+            shutdown_sender,
+            address,
+        }
+        .shutdown();
+
+        assert!(server.join().expect("join preview listener"));
     }
 
     #[test]

@@ -5,11 +5,13 @@ import type { TreeNode } from "../domain/workbench/models";
 import { useGitStore } from "../store/useGitStore";
 import { useWorkbenchStore } from "../store/useWorkbenchStore";
 import { subscribeToTerminalCommandSubmitted } from "../infrastructure/events/terminalCommandEvents";
+import { sameGitWorkspaceStatus } from "../domain/git/status";
 
 let refreshSequence = 0;
 let ignoreSequence = 0;
 let automaticRefreshInFlight = false;
-const GIT_POLL_INTERVAL_MS = 2_500;
+const GIT_POLL_MIN_INTERVAL_MS = 2_500;
+const GIT_POLL_MAX_INTERVAL_MS = 15_000;
 const TERMINAL_REFRESH_DELAY_MS = 650;
 
 function errorMessage(reason: unknown) {
@@ -33,19 +35,26 @@ function collectLoadedPaths(nodes: TreeNode[], output: string[]) {
 export async function refreshGitWorkspace(roots: string[], initial = false, silent = false) {
   if (roots.length === 0) {
     useGitStore.getState().clear();
-    return;
+    return false;
   }
-  if (silent && automaticRefreshInFlight) return;
+  if (silent && automaticRefreshInFlight) return false;
   if (silent) automaticRefreshInFlight = true;
   const request = ++refreshSequence;
   useGitStore.getState().beginRefresh(initial, !silent);
   try {
     const result = await gitGateway.workspaceStatus(roots);
-    if (request !== refreshSequence) return;
+    if (request !== refreshSequence) return false;
+    const current = useGitStore.getState();
+    const changed = !sameGitWorkspaceStatus(
+      { repositories: current.repositories, warnings: current.warnings },
+      result,
+    );
     useGitStore.getState().finishRefresh(result);
+    return changed;
   } catch (reason) {
-    if (request !== refreshSequence) return;
+    if (request !== refreshSequence) return false;
     useGitStore.getState().failRefresh(errorMessage(reason), !silent);
+    return false;
   } finally {
     if (silent) automaticRefreshInFlight = false;
   }
@@ -102,16 +111,21 @@ export function useGitWorkspace() {
     if (!gitPanelVisible || roots.length === 0) return;
     let cancelled = false;
     let timer = 0;
+    let interval = GIT_POLL_MIN_INTERVAL_MS;
 
     const poll = async () => {
       const { loading, refreshing } = useGitStore.getState();
+      let changed = false;
       if (canRunAutomaticRefresh() && !loading && !refreshing) {
-        await refreshGitWorkspace(rootsRef.current, false, true);
+        changed = await refreshGitWorkspace(rootsRef.current, false, true);
       }
-      if (!cancelled) timer = window.setTimeout(poll, GIT_POLL_INTERVAL_MS);
+      interval = changed
+        ? GIT_POLL_MIN_INTERVAL_MS
+        : Math.min(GIT_POLL_MAX_INTERVAL_MS, interval * 2);
+      if (!cancelled) timer = window.setTimeout(poll, interval);
     };
 
-    void poll();
+    timer = window.setTimeout(poll, interval);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);

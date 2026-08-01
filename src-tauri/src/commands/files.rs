@@ -31,6 +31,14 @@ pub struct FileSearchResultDto {
 
 const SEARCH_RESULT_LIMIT: usize = 200;
 const IGNORED_SEARCH_DIRECTORIES: [&str; 4] = [".git", "node_modules", "target", ".next"];
+const MAX_EDITABLE_FILE_BYTES: u64 = 5 * 1024 * 1024;
+
+fn ensure_editable_file_size(size: u64) -> Result<(), String> {
+    if size > MAX_EDITABLE_FILE_BYTES {
+        return Err("文件超过 5 MB，为避免占用过多内存，Berth 不会直接加载该文件".to_string());
+    }
+    Ok(())
+}
 
 fn normalize_path(path: &str) -> Result<PathBuf, String> {
     let expanded = if path == "~" {
@@ -213,7 +221,10 @@ pub async fn search_files(
 
 #[tauri::command]
 pub fn read_text_file(path: String) -> Result<String, String> {
-    fs::read_to_string(normalize_path(&path)?).map_err(|error| format!("无法读取文件：{error}"))
+    let path = normalize_path(&path)?;
+    let metadata = fs::metadata(&path).map_err(|error| format!("无法读取文件信息：{error}"))?;
+    ensure_editable_file_size(metadata.len())?;
+    fs::read_to_string(path).map_err(|error| format!("无法读取文件：{error}"))
 }
 
 #[tauri::command]
@@ -280,6 +291,12 @@ fn parent_directory(path: &Path) -> &Path {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejects_files_above_the_editable_memory_limit() {
+        assert!(ensure_editable_file_size(MAX_EDITABLE_FILE_BYTES).is_ok());
+        assert!(ensure_editable_file_size(MAX_EDITABLE_FILE_BYTES + 1).is_err());
+    }
 
     struct TemporarySearchRoot(PathBuf);
 

@@ -32,11 +32,18 @@ export function WorkbenchPaneView({ pane, onPaneDragStart }: WorkbenchPaneViewPr
     );
   }
 
+  // PTYs must stay mounted to preserve their live process and terminal buffer.
+  // Clean document and diff tabs can be recreated on demand, while dirty files
+  // remain mounted so an unsaved draft is never discarded by tab switching.
+  const mountedTabs = pane.tabs.filter((tab) => (
+    tab.id === activeTab.id || tab.kind === "terminal" || tab.dirty
+  ));
+
   return (
     <article className="workbench-pane" onPointerDown={() => focusPane(pane.id)}>
       <TabBar pane={pane} onPaneDragStart={onPaneDragStart} />
       <div className="workbench-pane__content">
-        {pane.tabs.map((tab) => (
+        {mountedTabs.map((tab) => (
           <div
             className={`workbench-view ${tab.id === activeTab.id ? "is-active" : ""}`}
             key={tab.id}

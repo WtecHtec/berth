@@ -485,7 +485,7 @@ fn ignored_paths_blocking(roots: Vec<String>, paths: Vec<String>) -> Result<Vec<
         else {
             continue;
         };
-        let Ok(relative) = resolved_path.strip_prefix(&repository) else {
+        let Ok(relative) = resolved_path.strip_prefix(repository) else {
             continue;
         };
         if relative.as_os_str().is_empty() {
