@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type {
+  AiSessionSummary,
   QuickPhrase,
   QuickPhraseActionResult,
   QuickPhraseDraft,
@@ -13,6 +14,7 @@ import type {
 import { normalizeGridLayout, resizeGridPanes } from "../domain/workbench/gridLayout";
 import { validateQuickPhraseDraft } from "../domain/phrases/phraseRules";
 import { loadQuickPhrases, saveQuickPhrases } from "../infrastructure/persistence/quickPhraseRepository";
+import { buildAiSessionResumeCommand } from "../infrastructure/terminal/aiSessionCommand";
 import { findTreeNode, setTreeNodeChildren, toggleTreeNode } from "../shared/utils/tree";
 
 interface WorkbenchState {
@@ -55,7 +57,7 @@ interface WorkbenchState {
   toggleFiles(): void;
   setSettingsOpen(open: boolean): void;
   setCommandPaletteOpen(open: boolean): void;
-  enqueueTerminalInput(sessionId: string, content: string): void;
+  enqueueTerminalInput(sessionId: string, content: string, submit?: boolean): void;
   acknowledgeTerminalInput(sessionId: string, requestId: string): void;
   addPhrase(draft: QuickPhraseDraft): QuickPhraseActionResult;
   updatePhrase(id: string, draft: QuickPhraseDraft): QuickPhraseActionResult;
@@ -63,6 +65,7 @@ interface WorkbenchState {
   replacePhrases(phrases: QuickPhrase[]): void;
   createTerminal(): void;
   createTerminalAt(cwd: string): void;
+  openAiSession(session: AiSessionSummary): void;
 }
 
 let paneSequence = 0;
@@ -258,7 +261,18 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
       const activePaneId = panes.some((pane) => pane.id === state.activePaneId)
         ? state.activePaneId
         : panes[panes.length - 1].id;
-      return { gridLayout, panes, activePaneId };
+      const retainedSessionIds = new Set(panes.flatMap((pane) => (
+        pane.tabs.flatMap((tab) => tab.sessionId ? [tab.sessionId] : [])
+      )));
+      const pendingTerminalInputs = Object.fromEntries(Object.entries(state.pendingTerminalInputs)
+        .filter(([sessionId]) => retainedSessionIds.has(sessionId)));
+      return {
+        gridLayout,
+        panes,
+        activePaneId,
+        sessions: state.sessions.filter((session) => retainedSessionIds.has(session.id)),
+        pendingTerminalInputs,
+      };
     });
   },
   setTabDirty(tabId, dirty) {
@@ -287,8 +301,8 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
   toggleFiles() { set((state) => ({ filesCollapsed: !state.filesCollapsed })); },
   setSettingsOpen(settingsOpen) { set({ settingsOpen }); },
   setCommandPaletteOpen(commandPaletteOpen) { set({ commandPaletteOpen }); },
-  enqueueTerminalInput(sessionId, content) {
-    const request: TerminalInputRequest = { id: crypto.randomUUID(), content };
+  enqueueTerminalInput(sessionId, content, submit = false) {
+    const request: TerminalInputRequest = { id: crypto.randomUUID(), content, submit };
     set((state) => ({
       pendingTerminalInputs: {
         ...state.pendingTerminalInputs,
@@ -368,6 +382,53 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
         sessions: [session, ...state.sessions],
         activePaneId: pane.id,
         panes: state.panes.map((item) => item.id === pane.id ? { ...item, tabs: [...item.tabs, tab], activeTabId: tab.id } : item),
+      };
+    });
+  },
+  openAiSession(aiSession) {
+    const state = get();
+    const existing = state.sessions.find((session) => (
+      session.aiSession?.provider === aiSession.provider
+      && session.aiSession.id === aiSession.id
+      && state.panes.some((pane) => pane.tabs.some((tab) => tab.sessionId === session.id))
+    ));
+    if (existing) {
+      get().focusSession(existing.id);
+      return;
+    }
+
+    const id = `terminal-${crypto.randomUUID()}`;
+    const providerLabel = aiSession.provider === "claude" ? "claude" : "codex";
+    const session: TerminalSession = {
+      id,
+      title: aiSession.title,
+      project: pathName(aiSession.rootPath),
+      cwd: aiSession.rootPath,
+      branch: aiSession.branch ?? "",
+      status: "running",
+      processLabel: providerLabel,
+      lastActivity: "正在恢复",
+      color: aiSession.provider === "claude" ? "#d49a72" : "#75baff",
+      aiSession: { id: aiSession.id, provider: aiSession.provider },
+    };
+    const resumeRequest: TerminalInputRequest = {
+      id: crypto.randomUUID(),
+      content: buildAiSessionResumeCommand(aiSession),
+      submit: true,
+    };
+    set((state) => {
+      const pane = state.panes.find((item) => item.id === state.activePaneId) ?? state.panes[0];
+      const tab = { id: `tab-${id}`, title: session.title, kind: "terminal" as const, sessionId: id };
+      return {
+        sessions: [session, ...state.sessions],
+        activePaneId: pane.id,
+        pendingTerminalInputs: {
+          ...state.pendingTerminalInputs,
+          [id]: [resumeRequest],
+        },
+        panes: state.panes.map((item) => item.id === pane.id
+          ? { ...item, tabs: [...item.tabs, tab], activeTabId: tab.id }
+          : item),
       };
     });
   },

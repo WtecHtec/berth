@@ -9,6 +9,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(TerminalRegistry::default())
         .invoke_handler(tauri::generate_handler![
+            commands::ai_sessions::list_ai_sessions,
             commands::files::list_directory,
             commands::files::search_files,
             commands::files::read_text_file,

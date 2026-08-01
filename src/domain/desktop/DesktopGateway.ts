@@ -1,4 +1,4 @@
-import type { TreeNode } from "../workbench/models";
+import type { AiSessionListResponse, TreeNode } from "../workbench/models";
 
 export interface TerminalCallbacks {
   onData(data: Uint8Array): void;
@@ -19,6 +19,7 @@ export interface DesktopGateway {
   pickFolder(): Promise<string | null>;
   listDirectory(path: string): Promise<TreeNode[]>;
   searchFiles(roots: string[], query: string): Promise<TreeNode[]>;
+  listAiSessions(roots: string[], limitPerProvider: number): Promise<AiSessionListResponse>;
   readTextFile(path: string): Promise<string>;
   writeTextFile(path: string, content: string): Promise<void>;
   createFile(directory: string, name: string): Promise<string>;

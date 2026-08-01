@@ -1,5 +1,5 @@
 import type { DesktopGateway, FileDropEvent, TerminalCallbacks } from "../../domain/desktop/DesktopGateway";
-import type { TreeNode } from "../../domain/workbench/models";
+import type { AiSessionListResponse, TreeNode } from "../../domain/workbench/models";
 
 interface TerminalEvent {
   kind: "data" | "exit";
@@ -25,6 +25,10 @@ export const tauriDesktopGateway: DesktopGateway = {
   async searchFiles(roots, query): Promise<TreeNode[]> {
     const { invoke } = await tauriCore();
     return invoke("search_files", { roots, query });
+  },
+  async listAiSessions(roots, limitPerProvider) {
+    const { invoke } = await tauriCore();
+    return invoke<AiSessionListResponse>("list_ai_sessions", { roots, limitPerProvider });
   },
   async readTextFile(path) {
     const { invoke } = await tauriCore();

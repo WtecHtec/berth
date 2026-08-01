@@ -11,6 +11,9 @@ export const browserDesktopGateway: DesktopGateway = {
   async searchFiles() {
     return [];
   },
+  async listAiSessions() {
+    return { sessions: [], warnings: [] };
+  },
   async readTextFile() {
     throw new Error("文件读取仅在桌面应用中可用");
   },

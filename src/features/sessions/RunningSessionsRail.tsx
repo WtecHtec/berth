@@ -1,6 +1,7 @@
 import { CirclePlus, Ellipsis, SquareTerminal } from "../../shared/lib/icons";
 import { IconButton } from "../../shared/ui/IconButton";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
+import { AiSessionList } from "./AiSessionList";
 
 interface RunningSessionsRailProps {
   collapsed: boolean;
@@ -51,6 +52,7 @@ export function RunningSessionsRail({ collapsed }: RunningSessionsRailProps) {
             <span className="session-row__time">{session.lastActivity}</span>
           </button>
         ))}
+        <AiSessionList />
       </div>
       <div className="sessions-rail__footer">
         <span className="session-summary"><i />{sessions.filter((item) => item.status === "running").length} 活跃</span>

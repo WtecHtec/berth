@@ -11,12 +11,31 @@ export interface TerminalSession {
   processLabel: string;
   lastActivity: string;
   color: string;
+  aiSession?: Pick<AiSessionSummary, "id" | "provider">;
 }
 
 /** One editable input payload waiting to be written to a specific PTY. */
 export interface TerminalInputRequest {
   id: string;
   content: string;
+  submit: boolean;
+}
+
+export type AiSessionProvider = "claude" | "codex";
+
+/** Metadata-only history row. Conversation turns never enter frontend state. */
+export interface AiSessionSummary {
+  id: string;
+  provider: AiSessionProvider;
+  rootPath: string;
+  title: string;
+  updatedAt: number;
+  branch?: string;
+}
+
+export interface AiSessionListResponse {
+  sessions: AiSessionSummary[];
+  warnings: string[];
 }
 
 export type GitStatus = "modified" | "added" | "deleted";

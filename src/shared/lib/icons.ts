@@ -27,6 +27,7 @@ export {
   Pencil,
   Play,
   Plus,
+  RefreshCw,
   Save,
   Search,
   Settings2,

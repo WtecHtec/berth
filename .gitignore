@@ -4,3 +4,4 @@ src-tauri/target/
 *.log
 *.tsbuildinfo
 .DS_Store
+prd.md

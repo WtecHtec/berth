@@ -113,7 +113,8 @@ export function TerminalSurface({ session, selected = false }: TerminalSurfacePr
             const request = useWorkbenchStore.getState().pendingTerminalInputs[session.id]?.[0];
             if (!request) break;
             try {
-              await desktopGateway.writeTerminal(terminalId, new TextEncoder().encode(request.content));
+              const input = request.submit ? `${request.content}\r` : request.content;
+              await desktopGateway.writeTerminal(terminalId, new TextEncoder().encode(input));
             } catch (error) {
               terminal.writeln(`\r\n\x1b[31m[无法注入快捷短语]\x1b[0m ${String(error)}`);
               break;
