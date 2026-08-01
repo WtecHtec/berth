@@ -11,6 +11,7 @@ import { Copy, ExternalLink, Eye, EyeOff } from "../../shared/lib/icons";
 import { IconButton } from "../../shared/ui/IconButton";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
 import { desktopGateway } from "../../app/services";
+import { useTabCloseController } from "../workbench/TabCloseController";
 import { HtmlPreview } from "./preview/HtmlPreview";
 import { MarkdownPreview } from "./preview/MarkdownPreview";
 import { MediaPreview } from "./preview/MediaPreview";
@@ -18,6 +19,7 @@ import { CodeEditor } from "./CodeEditor";
 
 export function FileViewer({ tab, active }: { tab: WorkbenchTab; active: boolean }) {
   const setTabDirty = useWorkbenchStore((state) => state.setTabDirty);
+  const { registerTabSaver } = useTabCloseController();
   const presentation = filePresentation(tab.filePath);
   const editable = isEditablePresentation(presentation);
   const supportsPreview = supportsRenderedPreview(presentation);
@@ -32,11 +34,15 @@ export function FileViewer({ tab, active }: { tab: WorkbenchTab; active: boolean
 
   useEffect(() => setPreviewing(false), [tab.filePath]);
 
+  /** 复用同一保存入口处理快捷键与关闭确认，避免不同入口产生不一致状态。 */
   const saveDraft = useCallback(async () => {
-    if (saving || !tab.dirty) return;
+    if (!tab.dirty) return;
+    if (saving) throw new Error("文件正在保存，请稍候。");
     await save(draft);
     setTabDirty(tab.id, false);
   }, [draft, save, saving, setTabDirty, tab.dirty, tab.id]);
+
+  useEffect(() => registerTabSaver(tab.id, saveDraft), [registerTabSaver, saveDraft, tab.id]);
 
   useFileSaveShortcut(active && editable && !previewing, saveDraft);
 

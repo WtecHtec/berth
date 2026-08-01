@@ -3,7 +3,6 @@ import type {
   WorkbenchGridLayout,
   WorkbenchLayoutNode,
   WorkbenchLayoutPreset,
-  WorkbenchPaneDropZone,
 } from "./models";
 
 export interface WorkbenchLayoutShapePane {
@@ -178,74 +177,6 @@ export function updateLayoutRatio(
   const second = updateLayoutRatio(node.children[1], splitNodeId, ratio);
   if (first === node.children[0] && second === node.children[1]) return node;
   return { ...node, children: [first, second] };
-}
-
-function removePane(
-  node: WorkbenchLayoutNode,
-  paneId: string,
-): { layout: WorkbenchLayoutNode | null; removed: boolean } {
-  if (node.type === "pane") {
-    return node.paneId === paneId
-      ? { layout: null, removed: true }
-      : { layout: node, removed: false };
-  }
-  const first = removePane(node.children[0], paneId);
-  if (first.removed) return first.layout
-    ? { layout: { ...node, children: [first.layout, node.children[1]] }, removed: true }
-    : { layout: node.children[1], removed: true };
-  const second = removePane(node.children[1], paneId);
-  if (!second.removed) return { layout: node, removed: false };
-  return second.layout
-    ? { layout: { ...node, children: [node.children[0], second.layout] }, removed: true }
-    : { layout: node.children[0], removed: true };
-}
-
-function replacePane(
-  node: WorkbenchLayoutNode,
-  paneId: string,
-  replacement: WorkbenchLayoutNode,
-): WorkbenchLayoutNode {
-  if (node.type === "pane") return node.paneId === paneId ? replacement : node;
-  const first = replacePane(node.children[0], paneId, replacement);
-  const second = replacePane(node.children[1], paneId, replacement);
-  if (first === node.children[0] && second === node.children[1]) return node;
-  return { ...node, children: [first, second] };
-}
-
-function swapPanes(node: WorkbenchLayoutNode, firstPaneId: string, secondPaneId: string): WorkbenchLayoutNode {
-  if (node.type === "pane") {
-    if (node.paneId === firstPaneId) return pane(secondPaneId);
-    if (node.paneId === secondPaneId) return pane(firstPaneId);
-    return node;
-  }
-  return {
-    ...node,
-    children: [
-      swapPanes(node.children[0], firstPaneId, secondPaneId),
-      swapPanes(node.children[1], firstPaneId, secondPaneId),
-    ],
-  };
-}
-
-/** 只移动面板布局节点，不改变标签和终端会话的所有权。 */
-export function movePaneInLayout(
-  node: WorkbenchLayoutNode,
-  sourcePaneId: string,
-  targetPaneId: string,
-  zone: WorkbenchPaneDropZone,
-): WorkbenchLayoutNode {
-  if (sourcePaneId === targetPaneId) return node;
-  if (zone === "center") return swapPanes(node, sourcePaneId, targetPaneId);
-
-  const removed = removePane(node, sourcePaneId);
-  if (!removed.removed || !removed.layout) return node;
-  const axis: WorkbenchLayoutAxis = zone === "left" || zone === "right" ? "horizontal" : "vertical";
-  const target = pane(targetPaneId);
-  const source = pane(sourcePaneId);
-  const replacement = zone === "left" || zone === "top"
-    ? split(axis, source, target)
-    : split(axis, target, source);
-  return replacePane(removed.layout, targetPaneId, replacement);
 }
 
 export function serializeLayoutShape(node: WorkbenchLayoutNode): WorkbenchLayoutShape {

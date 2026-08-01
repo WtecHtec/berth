@@ -72,7 +72,6 @@ export interface WorkbenchPane {
 }
 
 export type WorkbenchLayoutAxis = "horizontal" | "vertical";
-export type WorkbenchPaneDropZone = "left" | "right" | "top" | "bottom" | "center";
 export type WorkbenchLayoutPreset =
   | "single"
   | "columns"

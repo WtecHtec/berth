@@ -1,65 +1,90 @@
-import type { PointerEvent as ReactPointerEvent } from "react";
-import { FileCode2, FileDiff, FileText, GripVertical, SquareTerminal, X } from "lucide-react";
+import { useCallback, useState } from "react";
+import { FileCode2, FileDiff, FileText, SquareTerminal, X } from "lucide-react";
 import type { WorkbenchPane } from "../../domain/workbench/models";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
+import { TabContextMenu } from "./TabContextMenu";
+import { useTabCloseController } from "./TabCloseController";
 
 interface TabBarProps {
   pane: WorkbenchPane;
-  onPaneDragStart(paneId: string, event: ReactPointerEvent<HTMLButtonElement>): void;
 }
 
-export function TabBar({ pane, onPaneDragStart }: TabBarProps) {
+export function TabBar({ pane }: TabBarProps) {
   const activateTab = useWorkbenchStore((state) => state.activateTab);
-  const closeTab = useWorkbenchStore((state) => state.closeTab);
+  const { requestCloseTab, requestCloseOtherTabs } = useTabCloseController();
+  const [contextMenu, setContextMenu] = useState<{ tabId: string; title: string; x: number; y: number } | null>(null);
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
   return (
-    <div className="tabbar" role="tablist" aria-label="面板标签页">
-      <div className="tabbar__scroll">
-        {pane.tabs.map((tab) => {
-          const active = pane.activeTabId === tab.id;
-          const Icon = tab.kind === "terminal"
-            ? SquareTerminal
-            : tab.kind === "markdown"
-              ? FileText
-              : tab.kind === "git-diff"
-                ? FileDiff
-                : FileCode2;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              className={`workbench-tab ${active ? "is-active" : ""}`}
-              onClick={() => activateTab(pane.id, tab.id)}
-            >
-              <Icon size={13} />
-              <span>{tab.title}</span>
-              {tab.dirty ? <i className="dirty-dot" aria-label="未保存" /> : null}
-              <span
-                role="button"
-                tabIndex={0}
-                className="tab-close"
-                aria-label={`关闭 ${tab.title}`}
-                onClick={(event) => { event.stopPropagation(); closeTab(pane.id, tab.id); }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") closeTab(pane.id, tab.id);
+    <>
+      <div className="tabbar" role="tablist" aria-label="面板标签页">
+        <div className="tabbar__scroll">
+          {pane.tabs.map((tab) => {
+            const active = pane.activeTabId === tab.id;
+            const Icon = tab.kind === "terminal"
+              ? SquareTerminal
+              : tab.kind === "markdown"
+                ? FileText
+                : tab.kind === "git-diff"
+                  ? FileDiff
+                  : FileCode2;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                className={`workbench-tab ${active ? "is-active" : ""}`}
+                onClick={() => activateTab(pane.id, tab.id)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  activateTab(pane.id, tab.id);
+                  setContextMenu({ tabId: tab.id, title: tab.title, x: event.clientX, y: event.clientY });
                 }}
               >
-                <X size={11} />
-              </span>
-            </button>
-          );
-        })}
+                <Icon size={13} />
+                <span>{tab.title}</span>
+                {tab.dirty ? <i className="dirty-dot" aria-label="未保存" /> : null}
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className="tab-close"
+                  aria-label={`关闭 ${tab.title}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    requestCloseTab(pane.id, tab.id);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    requestCloseTab(pane.id, tab.id);
+                  }}
+                >
+                  <X size={11} />
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
-      <button
-        type="button"
-        className="pane-drag-handle"
-        aria-label="拖动面板"
-        onPointerDown={(event) => onPaneDragStart(pane.id, event)}
-      >
-        <GripVertical size={14} />
-      </button>
-    </div>
+      {contextMenu ? (
+        <TabContextMenu
+          title={contextMenu.title}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          canCloseOthers={pane.tabs.some((tab) => tab.id !== contextMenu.tabId)}
+          onClose={closeContextMenu}
+          onCloseCurrent={() => {
+            closeContextMenu();
+            requestCloseTab(pane.id, contextMenu.tabId);
+          }}
+          onCloseOthers={() => {
+            closeContextMenu();
+            requestCloseOtherTabs(pane.id, contextMenu.tabId);
+          }}
+        />
+      ) : null}
+    </>
   );
 }

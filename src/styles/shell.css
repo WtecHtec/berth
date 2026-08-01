@@ -257,6 +257,7 @@ html.is-tree-path-dragging .terminal-drop-target.is-file-over * { cursor: copy !
 .file-context-menu,
 .file-context-menu * { -webkit-user-select: none; user-select: none; }
 .file-context-menu { width: 182px; position: fixed; display: grid; gap: 2px; padding: 5px; border: 1px solid rgba(255,255,255,.14); border-radius: 9px; background: rgba(35,39,45,.98); box-shadow: 0 16px 45px rgba(0,0,0,.45); backdrop-filter: blur(24px) saturate(150%); }
+.tab-context-menu { width: 174px; }
 .file-context-menu button { height: 29px; display: flex; align-items: center; gap: 8px; padding: 0 8px; color: var(--text-2); border: 0; border-radius: 5px; background: transparent; font-size: 10px; text-align: left; }
 .file-context-menu button:hover { color: var(--text-1); background: var(--blue-soft); }
 .file-context-menu button:disabled { color: #555e68; pointer-events: none; }

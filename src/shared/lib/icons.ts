@@ -21,7 +21,6 @@ export {
   Folder,
   FolderOpen,
   GitBranch,
-  GripVertical,
   History,
   LayoutPanelLeft,
   LayoutGrid,

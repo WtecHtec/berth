@@ -11,7 +11,6 @@ import type {
   WorkbenchGridLayout,
   WorkbenchLayoutNode,
   WorkbenchLayoutPreset,
-  WorkbenchPaneDropZone,
   WorkbenchPane,
   WorkspaceRecord,
 } from "../domain/workbench/models";
@@ -23,7 +22,6 @@ import {
   hydrateLayoutShape,
   layoutPaneIds,
   layoutPresetPaneCount,
-  movePaneInLayout,
   updateLayoutRatio,
 } from "../domain/workbench/splitLayout";
 import { validateQuickPhraseDraft } from "../domain/phrases/phraseRules";
@@ -73,7 +71,6 @@ interface WorkbenchState {
   focusSession(sessionId: string): void;
   applyGridLayout(layout: WorkbenchGridLayout): void;
   applyLayoutPreset(preset: WorkbenchLayoutPreset): void;
-  movePane(sourcePaneId: string, targetPaneId: string, zone: WorkbenchPaneDropZone): void;
   setSplitRatio(splitId: string, ratio: number): void;
   restoreWorkspaceLayout(roots: string[]): void;
   setTabDirty(tabId: string, dirty: boolean): void;
@@ -408,15 +405,6 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
         panes,
         activePaneId: panes[0].id,
       };
-    });
-  },
-  movePane(sourcePaneId, targetPaneId, zone) {
-    if (sourcePaneId === targetPaneId) return;
-    set((state) => {
-      const layout = movePaneInLayout(state.layout, sourcePaneId, targetPaneId, zone);
-      if (layout === state.layout) return state;
-      saveWorkbenchLayout(state.workspaceRoots, layout);
-      return { layout, activePaneId: sourcePaneId };
     });
   },
   setSplitRatio(splitId, ratio) {
