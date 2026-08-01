@@ -17,6 +17,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 button:active:not(:disabled) { transform: scale(0.97); transition: transform 90ms ease-out; }
 button:disabled { opacity: 0.28; }
+.lucide { stroke-width: 1.6; shape-rendering: geometricPrecision; }
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border: 3px solid transparent; background-clip: padding-box; border-radius: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }

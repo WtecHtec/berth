@@ -186,7 +186,7 @@
 .git-sidebar-heading .git-refresh-button:active:not(:disabled) { transform: scale(.9); }
 .git-sidebar-heading .git-refresh-button.is-refreshing { color: var(--blue); background: var(--blue-soft); }
 .git-sidebar-heading .git-refresh-button.is-refreshing svg { animation: git-spin 720ms linear infinite; }
-.git-repository-filter { height: 32px; display: flex; align-items: center; gap: 6px; margin: 0 7px 5px; padding: 0 7px; color: var(--text-3); border: 1px solid var(--hairline); border-radius: 7px; background: rgba(7,10,14,.25); }
+.git-repository-filter { height: 32px; display: flex; align-items: center; margin: 0 7px 5px; padding: 0 6px; color: var(--text-3); border: 1px solid var(--hairline); border-radius: 7px; background: rgba(7,10,14,.25); }
 .git-repository-filter select { min-width: 0; flex: 1; color: var(--text-2); border: 0; outline: 0; background: transparent; font: inherit; font-size: 9.5px; }
 .git-repository-list { height: calc(100% - 93px); min-width: 249px; overflow-y: auto; padding: 0 5px 45px; }
 .git-repository-list.has-filter { height: calc(100% - 130px); }
@@ -210,8 +210,7 @@
 .git-change-group__heading { height: 23px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; color: #7f8994; font-size: 8.5px; font-weight: 620; }
 .git-change-row { min-width: 0; height: 30px; display: grid; grid-template-columns: minmax(0,1fr) 25px; align-items: center; position: relative; border-radius: 5px; }
 .git-change-row:hover, .git-change-row:focus-within { background: var(--surface-1); }
-.git-change-row__main { min-width: 0; height: 100%; display: grid; grid-template-columns: 16px minmax(0,1fr) auto; align-items: center; gap: 3px; padding: 0 3px 0 7px; color: var(--text-2); border: 0; background: transparent; text-align: left; }
-.git-change-row__main > svg { color: #778391; }
+.git-change-row__main { min-width: 0; height: 100%; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 4px; padding: 0 3px 0 8px; color: var(--text-2); border: 0; background: transparent; text-align: left; }
 .git-change-row__copy { min-width: 0; display: flex; align-items: baseline; gap: 5px; overflow: hidden; }
 .git-change-row__copy strong { overflow: hidden; color: inherit; font-size: 9.5px; font-weight: 520; text-overflow: ellipsis; white-space: nowrap; }
 .git-change-row__copy small { overflow: hidden; color: #5e6873; font-size: 7.5px; text-overflow: ellipsis; white-space: nowrap; }

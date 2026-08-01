@@ -1,4 +1,4 @@
-import { FileDiff, FilePlus2, FolderMinus, FolderSearch, Minus, Pencil, Plus, SquareTerminal } from "lucide-react";
+import { FileDiff, FilePlus2, FolderMinus, FolderSearch, Pencil, Plus, SquareTerminal, Undo2 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useEffect } from "react";
 import type { TreeNode } from "../../domain/workbench/models";
@@ -75,7 +75,7 @@ export function FileTreeContextMenu({
               </button>
             ) : null}
             {gitChange.indexStatus ? (
-              <button type="button" role="menuitem" onClick={onUnstage}><Minus size={14} />取消暂存</button>
+              <button type="button" role="menuitem" onClick={onUnstage}><Undo2 size={14} />取消暂存</button>
             ) : null}
             <span className="context-menu-separator" />
           </>

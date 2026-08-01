@@ -1,4 +1,4 @@
-import { Files, GitBranch, History, PanelLeftClose, Settings2, SquareTerminal } from "lucide-react";
+import { Folder, GitBranch, PanelLeftClose, Settings2, Terminal } from "lucide-react";
 import { IconButton } from "../../shared/ui/IconButton";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
 
@@ -16,14 +16,14 @@ export function ActivityRail() {
     <nav className="activity-rail" aria-label="工作台区域">
       <div className="activity-rail__top">
         <IconButton label="运行中的终端" className={!sessionsCollapsed ? "is-active" : ""} onClick={toggleSessions}>
-          <SquareTerminal size={18} />
+          <Terminal size={18} />
         </IconButton>
         <IconButton
           label="文件"
           className={!filesCollapsed && sidebarView === "files" ? "is-active" : ""}
           onClick={() => toggleSidebarView("files")}
         >
-          <Files size={18} />
+          <Folder size={18} />
         </IconButton>
         <IconButton
           label="源代码管理"

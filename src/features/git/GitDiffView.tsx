@@ -5,7 +5,7 @@ import { findGitChange } from "../../domain/git/status";
 import { useGitActions } from "../../hooks/useGitWorkspace";
 import { useGitDiff } from "../../hooks/useGitDiff";
 import { useGitStore } from "../../store/useGitStore";
-import { GitBranch, Minus, Plus, RefreshCw } from "lucide-react";
+import { GitBranch, RefreshCw } from "lucide-react";
 import { IconButton } from "../../shared/ui/IconButton";
 
 export function GitDiffView({ tab, active }: { tab: WorkbenchTab; active: boolean }) {
@@ -49,7 +49,7 @@ function GitDiffContent({ target, active }: {
               disabled={Boolean(busy)}
               onClick={() => void actions.stage(target.repositoryRoot, target.path)}
             >
-              {busy ? <RefreshCw size={12} className="is-spinning" /> : <Plus size={12} />}
+              {busy ? <RefreshCw size={12} className="is-spinning" /> : null}
               暂存
             </button>
           ) : null}
@@ -60,7 +60,7 @@ function GitDiffContent({ target, active }: {
               disabled={Boolean(busy)}
               onClick={() => void actions.unstage(target.repositoryRoot, target.path)}
             >
-              {busy ? <RefreshCw size={12} className="is-spinning" /> : <Minus size={12} />}
+              {busy ? <RefreshCw size={12} className="is-spinning" /> : null}
               取消暂存
             </button>
           ) : null}

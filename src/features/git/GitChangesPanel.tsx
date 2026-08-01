@@ -5,11 +5,12 @@ import { useGitActions } from "../../hooks/useGitWorkspace";
 import { useGitStore } from "../../store/useGitStore";
 import {
   ChevronRight,
-  FileCode2,
   GitBranch,
-  Minus,
+  ListMinus,
+  ListPlus,
   Plus,
   RefreshCw,
+  Undo2,
 } from "lucide-react";
 import { IconButton } from "../../shared/ui/IconButton";
 
@@ -35,7 +36,6 @@ function ChangeRow({ repository, change, mode, status, actions }: ChangeRowProps
         title={`${gitStatusLabel(status)} · ${change.relativePath}`}
         onClick={() => actions.openDiff(repository, change, mode)}
       >
-        <FileCode2 size={13} />
         <span className="git-change-row__copy">
           <strong>{fileName(change.path)}</strong>
           {parent ? <small>{parent}</small> : null}
@@ -50,7 +50,7 @@ function ChangeRow({ repository, change, mode, status, actions }: ChangeRowProps
           ? actions.unstage(repository.root, change.path)
           : actions.stage(repository.root, change.path))}
       >
-        {busy ? <RefreshCw size={12} /> : staged ? <Minus size={12} /> : <Plus size={12} />}
+        {busy ? <RefreshCw size={12} /> : staged ? <Undo2 size={12} /> : <Plus size={12} />}
       </IconButton>
     </div>
   );
@@ -126,7 +126,7 @@ function RepositorySection({ repository, expanded, onToggle, actions }: Reposito
             disabled={Boolean(busy) || working.length === 0}
             onClick={() => void actions.stageAll(repository.root)}
           >
-            {busy === "stage" ? <RefreshCw size={12} /> : <Plus size={12} />}
+            {busy === "stage" ? <RefreshCw size={12} /> : <ListPlus size={13} />}
           </IconButton>
           <IconButton
             label={`取消暂存 ${repository.name} 的所有更改`}
@@ -134,7 +134,7 @@ function RepositorySection({ repository, expanded, onToggle, actions }: Reposito
             disabled={Boolean(busy) || staged.length === 0}
             onClick={() => void actions.unstageAll(repository.root)}
           >
-            {busy === "unstage" ? <RefreshCw size={12} /> : <Minus size={12} />}
+            {busy === "unstage" ? <RefreshCw size={12} /> : <ListMinus size={13} />}
           </IconButton>
         </div>
       </div>
@@ -190,7 +190,6 @@ export function GitChangesPanel({ collapsed }: GitChangesPanelProps) {
       </div>
       {repositories.length > 1 ? (
         <div className="git-repository-filter">
-          <GitBranch size={12} />
           <select
             aria-label="筛选 Git 仓库"
             value={activeRoot}
@@ -234,7 +233,6 @@ export function GitChangesPanel({ collapsed }: GitChangesPanelProps) {
         <div className="git-sidebar-warning" title={warnings.join("\n")}>{warnings[0]}</div>
       ) : null}
       <div className="file-explorer__footer git-sidebar-footer">
-        <GitBranch size={13} />
         <span>{repositories.length} 个 Git 仓库</span>
       </div>
     </aside>
