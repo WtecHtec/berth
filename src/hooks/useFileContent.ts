@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { desktopGateway } from "../app/services";
 
-export function useFileContent(path?: string) {
+export function useFileContent(path?: string, enabled = true) {
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -9,7 +9,12 @@ export function useFileContent(path?: string) {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!path) return;
+    if (!path || !enabled) {
+      setContent("");
+      setLoading(false);
+      setError(null);
+      return;
+    }
     let active = true;
     setLoading(true);
     setError(null);
@@ -23,7 +28,7 @@ export function useFileContent(path?: string) {
       setLoading(false);
     });
     return () => { active = false; };
-  }, [path]);
+  }, [enabled, path]);
 
   const save = useCallback(async (nextContent: string) => {
     if (!path) return;

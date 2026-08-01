@@ -20,6 +20,18 @@ export const browserDesktopGateway: DesktopGateway = {
   async writeTextFile() {
     throw new Error("文件保存仅在桌面应用中可用");
   },
+  async resolveLocalFileUrl() {
+    throw new Error("本地媒体预览仅在桌面应用中可用");
+  },
+  async startHtmlPreview() {
+    throw new Error("HTML 预览仅在桌面应用中可用");
+  },
+  async stopHtmlPreview() {},
+  async openPreviewInSystemBrowser(url) {
+    const nextWindow = window.open(url, "_blank", "noopener,noreferrer");
+    if (!nextWindow) throw new Error("浏览器阻止了预览窗口");
+    nextWindow.opener = null;
+  },
   async createFile() {
     throw new Error("新建文件仅在桌面应用中可用");
   },

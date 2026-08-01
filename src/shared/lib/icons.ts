@@ -12,6 +12,8 @@ export {
   Code2,
   Copy,
   Ellipsis,
+  Eye,
+  EyeOff,
   ExternalLink,
   File,
   FileCode2,
@@ -36,6 +38,7 @@ export {
   SquareTerminal,
   Terminal,
   Trash2,
+  Volume2,
   X,
   Zap,
 } from "lucide-react";

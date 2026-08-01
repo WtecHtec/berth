@@ -38,6 +38,23 @@ export const tauriDesktopGateway: DesktopGateway = {
     const { invoke } = await tauriCore();
     await invoke("write_text_file", { path, content });
   },
+  async resolveLocalFileUrl(path) {
+    const { convertFileSrc, invoke } = await tauriCore();
+    await invoke("allow_preview_asset", { path });
+    return convertFileSrc(path);
+  },
+  async startHtmlPreview(path, content) {
+    const { invoke } = await tauriCore();
+    return invoke("start_html_preview", { path, content });
+  },
+  async stopHtmlPreview(previewId) {
+    const { invoke } = await tauriCore();
+    await invoke("stop_html_preview", { previewId });
+  },
+  async openPreviewInSystemBrowser(url) {
+    const { invoke } = await tauriCore();
+    await invoke("open_preview_in_system_browser", { url });
+  },
   async createFile(directory, name) {
     const { invoke } = await tauriCore();
     return invoke<string>("create_file", { directory, name });

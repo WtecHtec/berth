@@ -10,6 +10,11 @@ export type FileDropEvent =
   | { type: "drop"; paths: string[]; position: { x: number; y: number } }
   | { type: "leave" };
 
+export interface HtmlPreviewSession {
+  id: string;
+  url: string;
+}
+
 /**
  * Application-facing boundary for operating-system capabilities.
  * UI components never import Tauri directly, keeping browser previews testable.
@@ -22,6 +27,10 @@ export interface DesktopGateway {
   listAiSessions(roots: string[], limitPerProvider: number): Promise<AiSessionListResponse>;
   readTextFile(path: string): Promise<string>;
   writeTextFile(path: string, content: string): Promise<void>;
+  resolveLocalFileUrl(path: string): Promise<string>;
+  startHtmlPreview(path: string, content: string): Promise<HtmlPreviewSession>;
+  stopHtmlPreview(previewId: string): Promise<void>;
+  openPreviewInSystemBrowser(url: string): Promise<void>;
   createFile(directory: string, name: string): Promise<string>;
   renamePath(path: string, newName: string): Promise<string>;
   gitDiff(path: string): Promise<string>;
