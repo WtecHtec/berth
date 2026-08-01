@@ -55,7 +55,7 @@
   .ai-session-section.is-refreshing .ai-session-refresh-track span { transform: none; opacity: .8; }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .titlebar, .sessions-rail, .file-explorer, .command-palette, .settings-sheet, .layout-popover { backdrop-filter: none; -webkit-backdrop-filter: none; background: #191d22; }
+  .titlebar, .sessions-rail, .file-explorer, .command-palette, .settings-sheet, .layout-popover, .layout-continuity-notice, .tab-drag-ghost { backdrop-filter: none; -webkit-backdrop-filter: none; background: #191d22; }
 }
 @media (prefers-contrast: more) {
   :root { --hairline: rgba(255,255,255,.22); --text-2: #c8cdd3; --text-3: #a0a8b1; }

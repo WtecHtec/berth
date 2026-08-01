@@ -51,6 +51,8 @@
 .layout-preset-preview--main-top { grid-template: 1.45fr 1fr / 1fr 1fr; }
 .layout-preset-preview--main-top i:first-child { grid-column: 1 / -1; }
 .layout-popover p { margin: 9px 0 1px; color: var(--text-3); font-size: 8px; text-align: center; }
+.layout-continuity-notice { position: fixed; z-index: 120; top: 38px; right: 12px; display: flex; align-items: center; gap: 7px; padding: 8px 10px; color: #cfeee0; border: 1px solid rgba(85,214,156,.24); border-radius: 8px; background: rgba(27,43,38,.94); backdrop-filter: blur(20px) saturate(140%); font-size: 9px; animation: materialize 170ms ease-out; }
+.layout-continuity-notice svg { color: var(--green); }
 .command-trigger { width: 206px; height: 28px; display: flex; align-items: center; gap: 7px; padding: 0 7px 0 9px; color: var(--text-3); border: 1px solid var(--hairline); border-radius: 7px; background: rgba(255,255,255,.035); font-size: 11px; text-align: left; }
 .command-trigger:hover { color: var(--text-2); background: var(--surface-2); }
 .command-trigger span { flex: 1; }

@@ -34,10 +34,9 @@ function SplitDivider({ node }: { node: Extract<WorkbenchLayoutNode, { type: "sp
 
     const renderRatio = () => {
       frame = 0;
-      const first = `${committedRatio}fr`;
-      const second = `${1 - committedRatio}fr`;
-      if (node.axis === "horizontal") container.style.gridTemplateColumns = `${first} 1px ${second}`;
-      else container.style.gridTemplateRows = `${first} 1px ${second}`;
+      // 仅更新布局变量，避免切换横纵轴后遗留 gridTemplateColumns/Rows 内联样式。
+      container.style.setProperty("--split-first", `${committedRatio}fr`);
+      container.style.setProperty("--split-second", `${1 - committedRatio}fr`);
     };
     const handleMove = (moveEvent: PointerEvent) => {
       const bounds = container.getBoundingClientRect();
@@ -92,7 +91,10 @@ function SplitLayoutNode({
     const pane = panes.get(node.paneId);
     if (!pane) return null;
     return (
-      <div className={`workbench-pane-slot ${pane.id === activePaneId ? "is-active" : ""}`}>
+      <div
+        className={`workbench-pane-slot ${pane.id === activePaneId ? "is-active" : ""}`}
+        data-workbench-pane-id={pane.id}
+      >
         <WorkbenchPaneView pane={pane} />
       </div>
     );

@@ -13,6 +13,8 @@
 .split-divider:focus-visible { z-index: 14; outline-offset: -1px; }
 .workbench-pane-slot { min-width: 0; min-height: 0; position: relative; overflow: hidden; background: var(--bg-panel); }
 .workbench-pane-slot.is-active::after { content: ""; position: absolute; z-index: 8; inset: 0; pointer-events: none; border: 1px solid rgba(102,181,255,.18); }
+.workbench-pane-slot.is-tab-drop-target::after { content: ""; position: absolute; z-index: 22; inset: 5px; pointer-events: none; border: 1px solid rgba(117,190,255,.78); border-radius: 7px; background: rgba(65,151,230,.08); }
+.workbench-pane-slot.is-tab-drop-target::before { content: "释放以移动标签"; position: absolute; z-index: 23; left: 50%; top: 50%; padding: 6px 9px; pointer-events: none; color: #e6f3ff; border: 1px solid rgba(126,195,255,.28); border-radius: 6px; background: rgba(27,48,66,.92); font-size: 8.5px; transform: translate(-50%, -50%); }
 .workbench-pane { width: 100%; height: 100%; display: grid; grid-template-rows: 34px minmax(0, 1fr); overflow: hidden; background: #14171b; }
 .tabbar { display: flex; min-width: 0; border-bottom: 1px solid var(--hairline); background: #171a1f; }
 .tabbar,
@@ -23,6 +25,7 @@
 .workbench-tab > span:nth-child(2) { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; }
 .workbench-tab:hover { color: var(--text-2); background: rgba(255,255,255,.025); }
 .workbench-tab.is-active { color: #e5e9ee; background: #14171b; }
+.workbench-tab.is-dragging { opacity: .42; }
 .workbench-tab.is-active::after { content: ""; position: absolute; inset: 0 9px auto; height: 2px; border-radius: 0 0 2px 2px; background: var(--blue); }
 .dirty-dot { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--blue); }
 .tab-close { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; opacity: 0; }
@@ -30,6 +33,8 @@
 .tab-close:hover { background: var(--surface-2); opacity: 1; }
 html.is-resizing-horizontal, html.is-resizing-horizontal * { cursor: col-resize !important; user-select: none !important; }
 html.is-resizing-vertical, html.is-resizing-vertical * { cursor: row-resize !important; user-select: none !important; }
+html.is-tab-dragging, html.is-tab-dragging * { cursor: grabbing !important; user-select: none !important; }
+.tab-drag-ghost { height: 34px; position: fixed; z-index: 220; left: 0; top: 0; display: flex; align-items: center; padding: 0 11px; overflow: hidden; pointer-events: none; color: #dceeff; border: 1px solid rgba(126,195,255,.42); border-radius: 7px; background: rgba(30,42,54,.9); box-shadow: 0 12px 28px rgba(0,0,0,.34); backdrop-filter: blur(18px) saturate(140%); font-size: 10px; white-space: nowrap; text-overflow: ellipsis; will-change: transform; }
 .workbench-pane__content { min-height: 0; overflow: hidden; }
 .workbench-view { display: none; width: 100%; height: 100%; }
 .workbench-view.is-active { display: block; }

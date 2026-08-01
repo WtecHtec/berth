@@ -66,6 +66,7 @@ interface WorkbenchState {
   openFilePath(path: string, name?: string): void;
   openGitDiff(target: GitDiffTarget): void;
   activateTab(paneId: string, tabId: string): void;
+  moveTab(tabId: string, sourcePaneId: string, targetPaneId: string): void;
   closeTab(paneId: string, tabId: string): void;
   focusPane(paneId: string): void;
   focusSession(sessionId: string): void;
@@ -333,6 +334,42 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
         activePaneId: paneId,
         selectedTreePath: tab?.filePath ?? state.selectedTreePath,
         panes: state.panes.map((pane) => pane.id === paneId ? { ...pane, activeTabId: tabId } : pane),
+      };
+    });
+  },
+  moveTab(tabId, sourcePaneId, targetPaneId) {
+    if (sourcePaneId === targetPaneId) {
+      get().activateTab(targetPaneId, tabId);
+      return;
+    }
+    set((state) => {
+      const sourcePane = state.panes.find((pane) => pane.id === sourcePaneId);
+      const targetPane = state.panes.find((pane) => pane.id === targetPaneId);
+      const movedTab = sourcePane?.tabs.find((tab) => tab.id === tabId);
+      if (!sourcePane || !targetPane || !movedTab) return state;
+      const sourceIndex = sourcePane.tabs.findIndex((tab) => tab.id === tabId);
+      const sourceTabs = sourcePane.tabs.filter((tab) => tab.id !== tabId);
+      return {
+        activePaneId: targetPaneId,
+        selectedTreePath: movedTab.filePath ?? state.selectedTreePath,
+        panes: state.panes.map((pane) => {
+          if (pane.id === sourcePaneId) {
+            return {
+              ...pane,
+              tabs: sourceTabs,
+              activeTabId: pane.activeTabId === tabId
+                ? sourceTabs[Math.max(0, sourceIndex - 1)]?.id ?? ""
+                : pane.activeTabId,
+            };
+          }
+          if (pane.id === targetPaneId) {
+            const tabs = pane.tabs.some((tab) => tab.id === tabId)
+              ? pane.tabs
+              : [...pane.tabs, movedTab];
+            return { ...pane, tabs, activeTabId: tabId };
+          }
+          return pane;
+        }),
       };
     });
   },

@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { FileCode2, FileDiff, FileText, SquareTerminal, X } from "lucide-react";
 import type { WorkbenchPane } from "../../domain/workbench/models";
+import { useTabDrag } from "../../hooks/useTabDrag";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
 import { TabContextMenu } from "./TabContextMenu";
 import { useTabCloseController } from "./TabCloseController";
@@ -11,7 +12,9 @@ interface TabBarProps {
 
 export function TabBar({ pane }: TabBarProps) {
   const activateTab = useWorkbenchStore((state) => state.activateTab);
+  const moveTab = useWorkbenchStore((state) => state.moveTab);
   const { requestCloseTab, requestCloseOtherTabs } = useTabCloseController();
+  const { startTabDrag, shouldSuppressClick } = useTabDrag({ onDrop: moveTab });
   const [contextMenu, setContextMenu] = useState<{ tabId: string; title: string; x: number; y: number } | null>(null);
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
@@ -35,7 +38,14 @@ export function TabBar({ pane }: TabBarProps) {
                 role="tab"
                 aria-selected={active}
                 className={`workbench-tab ${active ? "is-active" : ""}`}
-                onClick={() => activateTab(pane.id, tab.id)}
+                onClick={() => {
+                  if (!shouldSuppressClick()) activateTab(pane.id, tab.id);
+                }}
+                onPointerDown={(event) => startTabDrag({
+                  tabId: tab.id,
+                  title: tab.title,
+                  sourcePaneId: pane.id,
+                }, event)}
                 onContextMenu={(event) => {
                   event.preventDefault();
                   activateTab(pane.id, tab.id);

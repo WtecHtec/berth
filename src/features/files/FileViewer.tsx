@@ -16,6 +16,7 @@ import { HtmlPreview } from "./preview/HtmlPreview";
 import { MarkdownPreview } from "./preview/MarkdownPreview";
 import { MediaPreview } from "./preview/MediaPreview";
 import { CodeEditor } from "./CodeEditor";
+import { clearFileDraft, readFileDraft, retainFileDraft } from "./fileDraftRegistry";
 
 export function FileViewer({ tab, active }: { tab: WorkbenchTab; active: boolean }) {
   const setTabDirty = useWorkbenchStore((state) => state.setTabDirty);
@@ -28,7 +29,13 @@ export function FileViewer({ tab, active }: { tab: WorkbenchTab; active: boolean
   const [previewing, setPreviewing] = useState(false);
 
   useEffect(() => {
+    const retainedDraft = tab.dirty ? readFileDraft(tab.id, tab.filePath) : undefined;
+    if (retainedDraft !== undefined) {
+      setDraft(retainedDraft);
+      return;
+    }
     setDraft(content);
+    clearFileDraft(tab.id);
     setTabDirty(tab.id, false);
   }, [content, setTabDirty, tab.filePath, tab.id]);
 
@@ -39,6 +46,7 @@ export function FileViewer({ tab, active }: { tab: WorkbenchTab; active: boolean
     if (!tab.dirty) return;
     if (saving) throw new Error("文件正在保存，请稍候。");
     await save(draft);
+    clearFileDraft(tab.id);
     setTabDirty(tab.id, false);
   }, [draft, save, saving, setTabDirty, tab.dirty, tab.id]);
 
@@ -94,7 +102,10 @@ export function FileViewer({ tab, active }: { tab: WorkbenchTab; active: boolean
             label={`编辑 ${tab.title}`}
             onChange={(nextDraft) => {
               setDraft(nextDraft);
-              setTabDirty(tab.id, nextDraft !== content);
+              const dirty = nextDraft !== content;
+              if (dirty) retainFileDraft(tab.id, tab.filePath, nextDraft);
+              else clearFileDraft(tab.id);
+              setTabDirty(tab.id, dirty);
             }}
           />
         ) : null}
