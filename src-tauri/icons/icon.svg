@@ -1,7 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!--
+    Berth app icon master artwork.
+    A single geometric mark represents a flexible docked workspace.
+  -->
   <rect x="24" y="24" width="464" height="464" rx="108" fill="#151A20"/>
-  <rect x="25" y="25" width="462" height="462" rx="107" fill="none" stroke="#FFFFFF" stroke-opacity=".13" stroke-width="2"/>
-  <path d="M142 128v238c0 14 11 25 25 25h108c66 0 108-35 108-89 0-39-23-66-58-78 26-13 42-37 42-68 0-50-38-79-98-79H166c-13 0-24 11-24 25Zm71 6h51c27 0 43 13 43 34s-16 35-43 35h-51v-69Zm0 126h63c31 0 48 14 48 38 0 25-17 39-48 39h-63v-77Z" fill="#68B8F7"/>
-  <path d="M103 400h306" stroke="#A6D9FF" stroke-opacity=".44" stroke-width="12" stroke-linecap="round"/>
-  <path d="M124 424h264" stroke="#5AA9ED" stroke-opacity=".25" stroke-width="8" stroke-linecap="round"/>
+  <rect
+    x="25"
+    y="25"
+    width="462"
+    height="462"
+    rx="107"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-opacity=".12"
+    stroke-width="2"
+  />
+
+  <!-- One tall pane and two stacked panes, expressed without letters or glyphs. -->
+  <path
+    d="M177 122H335C370 122 390 142 390 177V335C390 370 370 390 335 390H177C142 390 122 370 122 335V177C122 142 142 122 177 122ZM232 135V377M232 256H377"
+    fill="none"
+    stroke="#72BEF3"
+    stroke-width="26"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
 </svg>
