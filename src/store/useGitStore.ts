@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { GitRepository, GitWorkspaceStatus } from "../domain/git/models";
+import { sameGitWorkspaceStatus } from "../domain/git/status";
 
 type GitOperation = "stage" | "unstage";
 
@@ -12,9 +13,9 @@ interface GitState {
   error: string | null;
   revision: number;
   busyPaths: Record<string, GitOperation>;
-  beginRefresh(initial: boolean): void;
+  beginRefresh(initial: boolean, announce?: boolean): void;
   finishRefresh(result: GitWorkspaceStatus): void;
-  failRefresh(error: string): void;
+  failRefresh(error: string, announce?: boolean): void;
   replaceIgnoredPaths(paths: string[]): void;
   beginOperation(path: string, operation: GitOperation): void;
   finishOperation(path: string): void;
@@ -31,25 +32,35 @@ export const useGitStore = create<GitState>((set) => ({
   error: null,
   revision: 0,
   busyPaths: {},
-  beginRefresh(initial) {
+  beginRefresh(initial, announce = true) {
     set((state) => ({
-      loading: initial && state.repositories.length === 0,
-      refreshing: !initial,
-      error: null,
+      loading: announce && initial && state.repositories.length === 0,
+      refreshing: announce && !initial,
+      error: announce ? null : state.error,
     }));
   },
   finishRefresh(result) {
+    set((state) => {
+      const unchanged = sameGitWorkspaceStatus(
+        { repositories: state.repositories, warnings: state.warnings },
+        result,
+      );
+      return {
+        repositories: unchanged ? state.repositories : result.repositories,
+        warnings: unchanged ? state.warnings : result.warnings,
+        loading: false,
+        refreshing: false,
+        error: null,
+        revision: state.revision + Number(!unchanged),
+      };
+    });
+  },
+  failRefresh(error, announce = true) {
     set((state) => ({
-      repositories: result.repositories,
-      warnings: result.warnings,
       loading: false,
       refreshing: false,
-      error: null,
-      revision: state.revision + 1,
+      error: announce ? error : state.error,
     }));
-  },
-  failRefresh(error) {
-    set({ loading: false, refreshing: false, error });
   },
   replaceIgnoredPaths(paths) {
     set({ ignoredPaths: Object.fromEntries(paths.map((path) => [path, true])) });

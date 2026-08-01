@@ -1,4 +1,4 @@
-import type { GitChangeKind, GitFileChange, GitRepository } from "./models";
+import type { GitChangeKind, GitFileChange, GitRepository, GitWorkspaceStatus } from "./models";
 
 const STATUS_PRIORITY: Record<GitChangeKind, number> = {
   conflicted: 6,
@@ -71,4 +71,29 @@ export function gitTreeStatus(
     }
   }
   return strongest ? "changed" : null;
+}
+
+function sameChange(left: GitFileChange, right: GitFileChange) {
+  return left.path === right.path
+    && left.relativePath === right.relativePath
+    && left.indexStatus === right.indexStatus
+    && left.worktreeStatus === right.worktreeStatus;
+}
+
+function sameRepository(left: GitRepository, right: GitRepository) {
+  return left.root === right.root
+    && left.name === right.name
+    && left.branch === right.branch
+    && left.workspaceRoots.length === right.workspaceRoots.length
+    && left.workspaceRoots.every((root, index) => root === right.workspaceRoots[index])
+    && left.changes.length === right.changes.length
+    && left.changes.every((change, index) => sameChange(change, right.changes[index]));
+}
+
+/** Prevents silent polling from repainting the Git tree when nothing changed. */
+export function sameGitWorkspaceStatus(left: GitWorkspaceStatus, right: GitWorkspaceStatus) {
+  return left.warnings.length === right.warnings.length
+    && left.warnings.every((warning, index) => warning === right.warnings[index])
+    && left.repositories.length === right.repositories.length
+    && left.repositories.every((repository, index) => sameRepository(repository, right.repositories[index]));
 }

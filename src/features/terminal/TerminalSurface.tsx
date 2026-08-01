@@ -5,6 +5,7 @@ import { useTerminalFileDrop } from "../../hooks/useTerminalFileDrop";
 import { quoteShellPath } from "../../shared/utils/shell";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
 import { useInternalPathDropTarget } from "../../hooks/useInternalPathDropTarget";
+import { publishTerminalCommandSubmitted } from "../../infrastructure/events/terminalCommandEvents";
 
 interface TerminalSurfaceProps {
   session?: TerminalSession;
@@ -100,7 +101,11 @@ export function TerminalSurface({ session, selected = false }: TerminalSurfacePr
         return;
       }
       const inputDisposable = terminal.onData((data) => {
-        if (terminalId) void desktopGateway.writeTerminal(terminalId, new TextEncoder().encode(data));
+        if (!terminalId) return;
+        void desktopGateway.writeTerminal(terminalId, new TextEncoder().encode(data)).then(() => {
+          // Shells submit on carriage return; newlines also cover multi-line paste.
+          if (data.includes("\r") || data.includes("\n")) publishTerminalCommandSubmitted();
+        });
       });
 
       // Drain phrase requests in order. Each request is acknowledged only after
@@ -115,6 +120,7 @@ export function TerminalSurface({ session, selected = false }: TerminalSurfacePr
             try {
               const input = request.submit ? `${request.content}\r` : request.content;
               await desktopGateway.writeTerminal(terminalId, new TextEncoder().encode(input));
+              if (request.submit) publishTerminalCommandSubmitted();
             } catch (error) {
               terminal.writeln(`\r\n\x1b[31m[无法注入快捷短语]\x1b[0m ${String(error)}`);
               break;

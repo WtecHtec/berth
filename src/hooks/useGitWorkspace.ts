@@ -4,12 +4,20 @@ import type { GitDiffMode, GitFileChange, GitRepository } from "../domain/git/mo
 import type { TreeNode } from "../domain/workbench/models";
 import { useGitStore } from "../store/useGitStore";
 import { useWorkbenchStore } from "../store/useWorkbenchStore";
+import { subscribeToTerminalCommandSubmitted } from "../infrastructure/events/terminalCommandEvents";
 
 let refreshSequence = 0;
 let ignoreSequence = 0;
+let automaticRefreshInFlight = false;
+const GIT_POLL_INTERVAL_MS = 2_500;
+const TERMINAL_REFRESH_DELAY_MS = 650;
 
 function errorMessage(reason: unknown) {
   return reason instanceof Error ? reason.message : String(reason);
+}
+
+function canRunAutomaticRefresh() {
+  return document.visibilityState === "visible" && document.hasFocus();
 }
 
 function collectLoadedPaths(nodes: TreeNode[], output: string[]) {
@@ -22,20 +30,24 @@ function collectLoadedPaths(nodes: TreeNode[], output: string[]) {
 }
 
 /** Coalesces repository refreshes so an older Git process cannot overwrite newer state. */
-export async function refreshGitWorkspace(roots: string[], initial = false) {
+export async function refreshGitWorkspace(roots: string[], initial = false, silent = false) {
   if (roots.length === 0) {
     useGitStore.getState().clear();
     return;
   }
+  if (silent && automaticRefreshInFlight) return;
+  if (silent) automaticRefreshInFlight = true;
   const request = ++refreshSequence;
-  useGitStore.getState().beginRefresh(initial);
+  useGitStore.getState().beginRefresh(initial, !silent);
   try {
     const result = await gitGateway.workspaceStatus(roots);
     if (request !== refreshSequence) return;
     useGitStore.getState().finishRefresh(result);
   } catch (reason) {
     if (request !== refreshSequence) return;
-    useGitStore.getState().failRefresh(errorMessage(reason));
+    useGitStore.getState().failRefresh(errorMessage(reason), !silent);
+  } finally {
+    if (silent) automaticRefreshInFlight = false;
   }
 }
 
@@ -57,6 +69,8 @@ async function refreshIgnoredPaths(roots: string[], paths: string[]) {
 export function useGitWorkspace() {
   const roots = useWorkbenchStore((state) => state.workspaceRoots);
   const tree = useWorkbenchStore((state) => state.tree);
+  const sidebarView = useWorkbenchStore((state) => state.sidebarView);
+  const filesCollapsed = useWorkbenchStore((state) => state.filesCollapsed);
   const revision = useGitStore((state) => state.revision);
   const rootKey = roots.join("\0");
   const loadedPaths = useMemo(() => {
@@ -66,6 +80,7 @@ export function useGitWorkspace() {
   }, [tree]);
   const loadedPathKey = loadedPaths.join("\0");
   const rootsRef = useRef(roots);
+  const gitPanelVisible = sidebarView === "git" && !filesCollapsed;
 
   useEffect(() => { rootsRef.current = roots; }, [roots]);
 
@@ -82,6 +97,44 @@ export function useGitWorkspace() {
     window.addEventListener("focus", refreshOnFocus);
     return () => window.removeEventListener("focus", refreshOnFocus);
   }, []);
+
+  useEffect(() => {
+    if (!gitPanelVisible || roots.length === 0) return;
+    let cancelled = false;
+    let timer = 0;
+
+    const poll = async () => {
+      const { loading, refreshing } = useGitStore.getState();
+      if (canRunAutomaticRefresh() && !loading && !refreshing) {
+        await refreshGitWorkspace(rootsRef.current, false, true);
+      }
+      if (!cancelled) timer = window.setTimeout(poll, GIT_POLL_INTERVAL_MS);
+    };
+
+    void poll();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [gitPanelVisible, rootKey]);
+
+  useEffect(() => {
+    if (!gitPanelVisible) return;
+    let timer = 0;
+    const unsubscribe = subscribeToTerminalCommandSubmitted(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        const { loading, refreshing } = useGitStore.getState();
+        if (canRunAutomaticRefresh() && !loading && !refreshing) {
+          void refreshGitWorkspace(rootsRef.current, false, true);
+        }
+      }, TERMINAL_REFRESH_DELAY_MS);
+    });
+    return () => {
+      window.clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [gitPanelVisible]);
 }
 
 async function runMutation(
