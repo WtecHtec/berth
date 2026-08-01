@@ -1,0 +1,34 @@
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  font-synthesis: none;
+  font-optical-sizing: auto;
+  color: #e9edf2;
+  background: #0c0e11;
+  --font-mono: "SFMono-Regular", "SF Mono", Menlo, Monaco, Consolas, monospace;
+  --bg-window: #0f1114;
+  --bg-rail: rgba(20, 23, 27, 0.88);
+  --bg-sidebar: rgba(25, 28, 33, 0.88);
+  --bg-panel: #121519;
+  --bg-terminal: #111417;
+  --surface-1: rgba(255, 255, 255, 0.045);
+  --surface-2: rgba(255, 255, 255, 0.075);
+  --surface-3: rgba(255, 255, 255, 0.11);
+  --text-1: #eef2f6;
+  --text-2: #aab1ba;
+  --text-3: #737c87;
+  --hairline: rgba(255, 255, 255, 0.08);
+  --hairline-strong: rgba(255, 255, 255, 0.13);
+  --blue: #66b5ff;
+  --blue-soft: rgba(83, 164, 239, 0.18);
+  --green: #55d69c;
+  --amber: #f2c96d;
+  --red: #ff726f;
+  --purple: #b69cff;
+  --radius-xs: 5px;
+  --radius-sm: 7px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-float: 0 24px 80px rgba(0, 0, 0, 0.48), 0 2px 8px rgba(0, 0, 0, 0.35);
+  --spring: 320ms linear(0, 0.005, 0.023 2.1%, 0.093, 0.2 7%, 0.37, 0.54 15.5%, 0.711, 0.821 28%, 0.914, 0.966 42%, 0.991, 1.004 58%, 1.006, 1.002 76%, 1);
+  --fast: 120ms ease-out;
+}

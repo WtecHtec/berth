@@ -1,0 +1,44 @@
+import { useCallback, useEffect, useState } from "react";
+import { desktopGateway } from "../app/services";
+
+export function useFileContent(path?: string) {
+  const [content, setContent] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!path) return;
+    let active = true;
+    setLoading(true);
+    setError(null);
+    void desktopGateway.readTextFile(path).then((nextContent) => {
+      if (!active) return;
+      setContent(nextContent);
+      setLoading(false);
+    }).catch((cause) => {
+      if (!active) return;
+      setError(cause instanceof Error ? cause.message : String(cause));
+      setLoading(false);
+    });
+    return () => { active = false; };
+  }, [path]);
+
+  const save = useCallback(async (nextContent: string) => {
+    if (!path) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await desktopGateway.writeTextFile(path, nextContent);
+      setContent(nextContent);
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : String(cause));
+      throw cause;
+    } finally {
+      setSaving(false);
+    }
+  }, [path]);
+
+  return { content, loading, saving, error, saveError, save };
+}
