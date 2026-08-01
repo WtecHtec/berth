@@ -5,6 +5,7 @@ import { FileViewer } from "../files/FileViewer";
 import { TerminalPanel } from "../terminal/TerminalPanel";
 import { TabBar } from "./TabBar";
 import { FileText, SquareTerminal } from "../../shared/lib/icons";
+import { GitDiffView } from "../git/GitDiffView";
 
 interface WorkbenchPaneViewProps {
   pane: WorkbenchPane;
@@ -47,6 +48,8 @@ export function WorkbenchPaneView({ pane, onPaneDragStart }: WorkbenchPaneViewPr
                 session={sessions.find((session) => session.id === tab.sessionId)}
                 selected={activePaneId === pane.id && tab.id === activeTab.id}
               />
+            ) : tab.kind === "git-diff" ? (
+              <GitDiffView tab={tab} active={activePaneId === pane.id && tab.id === activeTab.id} />
             ) : (
               <FileViewer tab={tab} active={activePaneId === pane.id && tab.id === activeTab.id} />
             )}

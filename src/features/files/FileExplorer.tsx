@@ -11,6 +11,9 @@ import { TreeRow } from "./TreeRow";
 import { FileTreeContextMenu } from "./FileTreeContextMenu";
 import { FileNameDialog } from "./FileNameDialog";
 import { FileSearchResults } from "./FileSearchResults";
+import { useGitStore } from "../../store/useGitStore";
+import { findGitChange } from "../../domain/git/status";
+import { useGitActions } from "../../hooks/useGitWorkspace";
 
 interface FileExplorerProps {
   collapsed: boolean;
@@ -24,6 +27,8 @@ export function FileExplorer({ collapsed }: FileExplorerProps) {
   const setRecentWorkspaces = useWorkbenchStore((state) => state.setRecentWorkspaces);
   const actions = useFileTreeActions();
   const appendFolder = useAppendWorkspaceFolder();
+  const repositories = useGitStore((state) => state.repositories);
+  const gitActions = useGitActions();
   const [searchOpen, setSearchOpen] = useState(false);
   const search = useFileSearch(searchOpen);
   const [contextMenu, setContextMenu] = useState<{ node: TreeNode; x: number; y: number } | null>(null);
@@ -117,7 +122,27 @@ export function FileExplorer({ collapsed }: FileExplorerProps) {
       {contextMenu ? (
         <FileTreeContextMenu
           {...contextMenu}
+          gitChange={findGitChange(repositories, contextMenu.node.path)?.change}
           onClose={() => setContextMenu(null)}
+          onViewGitChange={() => {
+            const located = findGitChange(repositories, contextMenu.node.path);
+            if (located) gitActions.openDiff(
+              located.repository,
+              located.change,
+              located.change.worktreeStatus ? "working" : "staged",
+            );
+            setContextMenu(null);
+          }}
+          onStage={() => {
+            const located = findGitChange(repositories, contextMenu.node.path);
+            if (located) void gitActions.stage(located.repository.root, located.change.path);
+            setContextMenu(null);
+          }}
+          onUnstage={() => {
+            const located = findGitChange(repositories, contextMenu.node.path);
+            if (located) void gitActions.unstage(located.repository.root, located.change.path);
+            setContextMenu(null);
+          }}
           onCreateFile={() => beginNameOperation("create", contextMenu.node)}
           onRename={() => beginNameOperation("rename", contextMenu.node)}
           onCreateTerminal={() => { actions.createTerminal(contextMenu.node); setContextMenu(null); }}

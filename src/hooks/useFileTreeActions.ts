@@ -4,6 +4,7 @@ import { desktopGateway } from "../app/services";
 import { findTreeNodeByPath } from "../shared/utils/tree";
 import { parentPath } from "../shared/utils/path";
 import { useWorkbenchStore } from "../store/useWorkbenchStore";
+import { refreshGitWorkspace } from "./useGitWorkspace";
 
 function directoryForNode(node: TreeNode) {
   return node.kind === "root" || node.kind === "folder" ? node.path : parentPath(node.path);
@@ -46,6 +47,7 @@ export function useFileTreeActions() {
         const directory = directoryForNode(node);
         await desktopGateway.createFile(directory, name);
         await refreshDirectory(directory);
+        await refreshGitWorkspace(useWorkbenchStore.getState().workspaceRoots);
       });
     },
     rename(node: TreeNode, name: string) {
@@ -55,6 +57,7 @@ export function useFileTreeActions() {
         const nextPath = await desktopGateway.renamePath(previousPath, name);
         renameOpenPaths(previousPath, nextPath);
         await refreshDirectory(directory);
+        await refreshGitWorkspace(useWorkbenchStore.getState().workspaceRoots);
       });
     },
     createTerminal(node: TreeNode) {

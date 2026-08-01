@@ -33,7 +33,6 @@ export interface DesktopGateway {
   openPreviewInSystemBrowser(url: string): Promise<void>;
   createFile(directory: string, name: string): Promise<string>;
   renamePath(path: string, newName: string): Promise<string>;
-  gitDiff(path: string): Promise<string>;
   revealInFinder(path: string): Promise<void>;
   createWindow(): Promise<void>;
   openInSystemTerminal(path: string): Promise<void>;

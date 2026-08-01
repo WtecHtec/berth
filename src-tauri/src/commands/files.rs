@@ -6,6 +6,8 @@ use std::{
     process::Command,
 };
 
+use super::git::list_searchable_files;
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileEntryDto {
@@ -144,7 +146,47 @@ fn search_files_blocking(
             .file_name()
             .map(|name| name.to_string_lossy().to_string())
             .unwrap_or_else(|| root.to_string_lossy().to_string());
-        collect_matching_files(&root, &root, &root_label, &normalized_query, &mut results);
+        match list_searchable_files(&root) {
+            Ok(Some(paths)) => {
+                // Git supplies tracked and untracked files while honoring all standard ignore sources.
+                for path in paths {
+                    if results.len() >= SEARCH_RESULT_LIMIT {
+                        break;
+                    }
+                    let Some(name) = path
+                        .file_name()
+                        .map(|value| value.to_string_lossy().to_string())
+                    else {
+                        continue;
+                    };
+                    if !name.to_lowercase().contains(&normalized_query) {
+                        continue;
+                    }
+                    let relative_parent = path
+                        .strip_prefix(&root)
+                        .ok()
+                        .and_then(Path::parent)
+                        .filter(|parent| !parent.as_os_str().is_empty())
+                        .map(|parent| parent.to_string_lossy().to_string());
+                    let meta = relative_parent
+                        .map(|parent| format!("{root_label}/{parent}"))
+                        .unwrap_or_else(|| root_label.clone());
+                    let path_text = path.to_string_lossy().to_string();
+                    results.push(FileSearchResultDto {
+                        id: path_text.clone(),
+                        name,
+                        path: path_text,
+                        kind: "file",
+                        depth: 0,
+                        meta,
+                    });
+                }
+            }
+            // Non-Git roots retain the existing bounded filesystem search behavior.
+            Ok(None) | Err(_) => {
+                collect_matching_files(&root, &root, &root_label, &normalized_query, &mut results)
+            }
+        }
         if results.len() >= SEARCH_RESULT_LIMIT {
             break;
         }
@@ -266,5 +308,32 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].name, "AppShell.tsx");
         assert!(results[0].meta.ends_with("/src"));
+    }
+
+    #[test]
+    fn git_workspace_search_honors_standard_ignore_rules() {
+        let root = TemporarySearchRoot(
+            std::env::temp_dir().join(format!("berth-file-search-{}", uuid::Uuid::new_v4())),
+        );
+        fs::create_dir_all(root.0.join("src")).expect("create source directory");
+        fs::write(root.0.join(".gitignore"), "AppIgnored.tsx\n").expect("write ignore file");
+        fs::write(root.0.join("src/AppVisible.tsx"), "export {};").expect("write visible file");
+        fs::write(root.0.join("AppIgnored.tsx"), "export {};").expect("write ignored file");
+        let output = Command::new("git")
+            .arg("-C")
+            .arg(&root.0)
+            .args(["init", "-q"])
+            .output()
+            .expect("initialize repository");
+        assert!(output.status.success());
+
+        let results = search_files_blocking(
+            vec![root.0.to_string_lossy().to_string()],
+            "app".to_string(),
+        )
+        .expect("search Git files");
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].name, "AppVisible.tsx");
     }
 }

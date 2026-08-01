@@ -1,5 +1,5 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { FileCode2, FileText, GripVertical, SquareTerminal, X } from "../../shared/lib/icons";
+import { FileCode2, FileDiff, FileText, GripVertical, SquareTerminal, X } from "lucide-react";
 import type { WorkbenchPane } from "../../domain/workbench/models";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
 
@@ -17,7 +17,13 @@ export function TabBar({ pane, onPaneDragStart }: TabBarProps) {
       <div className="tabbar__scroll">
         {pane.tabs.map((tab) => {
           const active = pane.activeTabId === tab.id;
-          const Icon = tab.kind === "terminal" ? SquareTerminal : tab.kind === "markdown" ? FileText : FileCode2;
+          const Icon = tab.kind === "terminal"
+            ? SquareTerminal
+            : tab.kind === "markdown"
+              ? FileText
+              : tab.kind === "git-diff"
+                ? FileDiff
+                : FileCode2;
           return (
             <button
               key={tab.id}

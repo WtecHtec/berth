@@ -3,6 +3,8 @@ import type { TreeNode } from "../../domain/workbench/models";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
 import { desktopGateway } from "../../app/services";
 import { useTreePathMouseDrag } from "../../hooks/useTreePathMouseDrag";
+import { useGitStore } from "../../store/useGitStore";
+import { findGitChange, gitStatusLetter, gitTreeStatus } from "../../domain/git/status";
 
 interface TreeRowProps {
   node: TreeNode;
@@ -25,6 +27,9 @@ export function TreeRow({ node, onContextMenu }: TreeRowProps) {
   const isSelected = useWorkbenchStore((state) => state.selectedTreePath === node.path);
   const expandable = node.kind === "root" || node.kind === "folder" || node.kind === "history";
   const pathDrag = useTreePathMouseDrag(node.path);
+  const gitStatus = useGitStore((state) => gitTreeStatus(state.repositories, node.path));
+  const ignored = useGitStore((state) => Boolean(state.ignoredPaths[node.path]));
+  const openGitDiff = useWorkbenchStore((state) => state.openGitDiff);
 
   const handleOpen = async () => {
     selectTreePath(node.path);
@@ -43,11 +48,12 @@ export function TreeRow({ node, onContextMenu }: TreeRowProps) {
   return (
     <>
       <button
-        className={`tree-row tree-row--${node.kind} ${isSelected ? "is-selected" : ""} ${pathDrag.isDragging ? "is-dragging" : ""}`}
+        className={`tree-row tree-row--${node.kind} ${isSelected ? "is-selected" : ""} ${pathDrag.isDragging ? "is-dragging" : ""} ${ignored ? "is-git-ignored" : ""}`}
         type="button"
         role="treeitem"
         aria-selected={isSelected}
         aria-expanded={expandable ? Boolean(node.expanded) : undefined}
+        title={ignored ? `${node.path}\n被 Git 忽略` : node.path}
         style={{ "--tree-depth": node.depth } as React.CSSProperties}
         onClick={(event) => {
           if (pathDrag.suppressClick(event)) return;
@@ -55,6 +61,15 @@ export function TreeRow({ node, onContextMenu }: TreeRowProps) {
         }}
         onContextMenu={(event) => {
           event.preventDefault();
+          event.stopPropagation();
+          // WebKit can retain a text range after secondary-clicking a button.
+          // Clear only ranges anchored in this row so editor selections survive.
+          const selection = window.getSelection();
+          const anchor = selection?.anchorNode;
+          const focus = selection?.focusNode;
+          if ((anchor && event.currentTarget.contains(anchor)) || (focus && event.currentTarget.contains(focus))) {
+            selection?.removeAllRanges();
+          }
           selectTreePath(node.path);
           onContextMenu(node, event.clientX, event.clientY);
         }}
@@ -66,7 +81,43 @@ export function TreeRow({ node, onContextMenu }: TreeRowProps) {
         <span className="tree-icon"><NodeIcon node={node} /></span>
         <span className="tree-label">{node.name}</span>
         {node.meta ? <span className="tree-meta">{node.meta}</span> : null}
-        {node.gitStatus ? <span className={`git-mark git-mark--${node.gitStatus}`}>{node.gitStatus.at(0)?.toUpperCase()}</span> : null}
+        {ignored ? (
+          <span className="git-ignore-mark" aria-label="被 Git 忽略">忽略</span>
+        ) : gitStatus ? (
+          <span
+            className={`git-mark git-mark--${gitStatus}`}
+            role={gitStatus !== "changed" && node.kind === "file" ? "button" : undefined}
+            tabIndex={gitStatus !== "changed" && node.kind === "file" ? 0 : undefined}
+            aria-label={gitStatus !== "changed" ? `查看 ${node.name} 的更改` : "包含 Git 更改"}
+            onMouseDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              const located = findGitChange(useGitStore.getState().repositories, node.path);
+              if (!located) return;
+              openGitDiff({
+                repositoryRoot: located.repository.root,
+                path: located.change.path,
+                relativePath: located.change.relativePath,
+                mode: located.change.worktreeStatus ? "working" : "staged",
+              });
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              event.stopPropagation();
+              const located = findGitChange(useGitStore.getState().repositories, node.path);
+              if (!located) return;
+              openGitDiff({
+                repositoryRoot: located.repository.root,
+                path: located.change.path,
+                relativePath: located.change.relativePath,
+                mode: located.change.worktreeStatus ? "working" : "staged",
+              });
+            }}
+          >
+            {gitStatus === "changed" ? "•" : gitStatusLetter(gitStatus)}
+          </span>
+        ) : null}
       </button>
       {node.expanded ? node.children?.map((child) => <TreeRow key={child.id} node={child} onContextMenu={onContextMenu} />) : null}
     </>

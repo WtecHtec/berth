@@ -1,4 +1,4 @@
-import { Files, FolderOpen, History, PanelLeftClose, Settings2, SquareTerminal } from "lucide-react";
+import { Files, GitBranch, History, PanelLeftClose, Settings2, SquareTerminal } from "lucide-react";
 import { IconButton } from "../../shared/ui/IconButton";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
 
@@ -6,8 +6,10 @@ export function ActivityRail() {
   // Atomic selectors keep React 19's external-store snapshot referentially stable.
   const sessionsCollapsed = useWorkbenchStore((state) => state.sessionsCollapsed);
   const filesCollapsed = useWorkbenchStore((state) => state.filesCollapsed);
+  const sidebarView = useWorkbenchStore((state) => state.sidebarView);
   const toggleSessions = useWorkbenchStore((state) => state.toggleSessions);
   const toggleFiles = useWorkbenchStore((state) => state.toggleFiles);
+  const toggleSidebarView = useWorkbenchStore((state) => state.toggleSidebarView);
   const setSettingsOpen = useWorkbenchStore((state) => state.setSettingsOpen);
 
   return (
@@ -16,13 +18,20 @@ export function ActivityRail() {
         <IconButton label="运行中的终端" className={!sessionsCollapsed ? "is-active" : ""} onClick={toggleSessions}>
           <SquareTerminal size={18} />
         </IconButton>
-        <IconButton label="文件" className={!filesCollapsed ? "is-active" : ""} onClick={toggleFiles}>
+        <IconButton
+          label="文件"
+          className={!filesCollapsed && sidebarView === "files" ? "is-active" : ""}
+          onClick={() => toggleSidebarView("files")}
+        >
           <Files size={18} />
         </IconButton>
-        <IconButton label="历史" disabled>
-          <History size={18} />
+        <IconButton
+          label="源代码管理"
+          className={!filesCollapsed && sidebarView === "git" ? "is-active" : ""}
+          onClick={() => toggleSidebarView("git")}
+        >
+          <GitBranch size={18} />
         </IconButton>
-
       </div>
       <div className="activity-rail__bottom">
         <IconButton label="收起全部侧栏" onClick={() => {

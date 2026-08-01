@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { GitDiffTarget } from "../domain/git/models";
 import type {
   AiSessionSummary,
   QuickPhrase,
@@ -48,6 +49,7 @@ interface WorkbenchState {
   activePaneId: string;
   sessionsCollapsed: boolean;
   filesCollapsed: boolean;
+  sidebarView: "files" | "git";
   settingsOpen: boolean;
   commandPaletteOpen: boolean;
   pendingTerminalInputs: Record<string, TerminalInputRequest[]>;
@@ -64,6 +66,7 @@ interface WorkbenchState {
   selectTreePath(path: string): void;
   openTreeNode(id: string): void;
   openFilePath(path: string, name?: string): void;
+  openGitDiff(target: GitDiffTarget): void;
   activateTab(paneId: string, tabId: string): void;
   closeTab(paneId: string, tabId: string): void;
   focusPane(paneId: string): void;
@@ -77,6 +80,7 @@ interface WorkbenchState {
   renameOpenPaths(previousPath: string, nextPath: string): void;
   toggleSessions(): void;
   toggleFiles(): void;
+  toggleSidebarView(view: "files" | "git"): void;
   setSettingsOpen(open: boolean): void;
   setCommandPaletteOpen(open: boolean): void;
   enqueueTerminalInput(sessionId: string, content: string, submit?: boolean): void;
@@ -165,6 +169,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
   activePaneId: "pane-main",
   sessionsCollapsed: false,
   filesCollapsed: false,
+  sidebarView: "files",
   settingsOpen: false,
   commandPaletteOpen: false,
   pendingTerminalInputs: {},
@@ -194,6 +199,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
       panes: [initialPane()],
       layout: initialLayout(),
       activePaneId: "pane-main",
+      sidebarView: "files",
       pendingTerminalInputs: {},
     });
   },
@@ -299,6 +305,27 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
         selectedTreePath: path,
         activePaneId: pane.id,
         panes: state.panes.map((item) => item.id === pane.id ? { ...item, tabs, activeTabId: tabId } : item),
+      };
+    });
+  },
+  openGitDiff(target) {
+    const tabId = `git-diff:${target.mode}:${target.path}`;
+    set((state) => {
+      const pane = state.panes.find((item) => item.id === state.activePaneId) ?? state.panes[0];
+      const exists = pane.tabs.some((tab) => tab.id === tabId);
+      const tabs = exists ? pane.tabs : [...pane.tabs, {
+        id: tabId,
+        title: `${pathName(target.path)} — 更改`,
+        kind: "git-diff" as const,
+        filePath: target.path,
+        gitDiffTarget: target,
+      }];
+      return {
+        selectedTreePath: target.path,
+        activePaneId: pane.id,
+        panes: state.panes.map((item) => item.id === pane.id
+          ? { ...item, tabs, activeTabId: tabId }
+          : item),
       };
     });
   },
@@ -424,9 +451,24 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
         const tabs = pane.tabs.map((tab) => {
           if (!tab.filePath || (tab.filePath !== previousPath && !tab.filePath.startsWith(pathPrefix))) return tab;
           const filePath = `${nextPath}${tab.filePath.slice(previousPath.length)}`;
-          const id = `file:${filePath}`;
+          const gitDiffTarget = tab.gitDiffTarget
+            ? {
+                ...tab.gitDiffTarget,
+                path: `${nextPath}${tab.gitDiffTarget.path.slice(previousPath.length)}`,
+                relativePath: tab.gitDiffTarget.relativePath,
+              }
+            : undefined;
+          const id = gitDiffTarget
+            ? `git-diff:${gitDiffTarget.mode}:${filePath}`
+            : `file:${filePath}`;
           if (activeTabId === tab.id) activeTabId = id;
-          return { ...tab, id, filePath, title: pathName(filePath) };
+          return {
+            ...tab,
+            id,
+            filePath,
+            gitDiffTarget,
+            title: gitDiffTarget ? `${pathName(filePath)} — 更改` : pathName(filePath),
+          };
         });
         return { ...pane, tabs, activeTabId };
       }),
@@ -434,6 +476,11 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
   },
   toggleSessions() { set((state) => ({ sessionsCollapsed: !state.sessionsCollapsed })); },
   toggleFiles() { set((state) => ({ filesCollapsed: !state.filesCollapsed })); },
+  toggleSidebarView(sidebarView) {
+    set((state) => state.sidebarView === sidebarView && !state.filesCollapsed
+      ? { filesCollapsed: true }
+      : { sidebarView, filesCollapsed: false });
+  },
   setSettingsOpen(settingsOpen) { set({ settingsOpen }); },
   setCommandPaletteOpen(commandPaletteOpen) { set({ commandPaletteOpen }); },
   enqueueTerminalInput(sessionId, content, submit = false) {

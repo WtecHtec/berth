@@ -63,10 +63,6 @@ export const tauriDesktopGateway: DesktopGateway = {
     const { invoke } = await tauriCore();
     return invoke<string>("rename_path", { path, newName });
   },
-  async gitDiff(path) {
-    const { invoke } = await tauriCore();
-    return invoke<string>("git_diff", { path });
-  },
   async revealInFinder(path) {
     const { invoke } = await tauriCore();
     await invoke("reveal_in_finder", { path });

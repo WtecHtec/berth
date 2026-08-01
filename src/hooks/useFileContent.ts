@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { desktopGateway } from "../app/services";
+import { refreshGitWorkspace } from "./useGitWorkspace";
+import { useWorkbenchStore } from "../store/useWorkbenchStore";
 
 export function useFileContent(path?: string, enabled = true) {
   const [content, setContent] = useState("");
@@ -37,6 +39,7 @@ export function useFileContent(path?: string, enabled = true) {
     try {
       await desktopGateway.writeTextFile(path, nextContent);
       setContent(nextContent);
+      void refreshGitWorkspace(useWorkbenchStore.getState().workspaceRoots);
     } catch (cause) {
       setSaveError(cause instanceof Error ? cause.message : String(cause));
       throw cause;

@@ -1,3 +1,5 @@
+import type { GitDiffTarget } from "../git/models";
+
 export type SessionStatus = "running" | "waiting" | "exited";
 
 /** A terminal session Berth observes. It is deliberately provider-agnostic. */
@@ -38,7 +40,6 @@ export interface AiSessionListResponse {
   warnings: string[];
 }
 
-export type GitStatus = "modified" | "added" | "deleted";
 export type TreeNodeKind = "root" | "folder" | "file" | "history" | "session";
 
 export interface TreeNode {
@@ -48,12 +49,11 @@ export interface TreeNode {
   kind: TreeNodeKind;
   depth: number;
   expanded?: boolean;
-  gitStatus?: GitStatus;
   children?: TreeNode[];
   meta?: string;
 }
 
-export type TabKind = "terminal" | "file" | "markdown" | "welcome";
+export type TabKind = "terminal" | "file" | "markdown" | "git-diff" | "welcome";
 
 export interface WorkbenchTab {
   id: string;
@@ -61,6 +61,7 @@ export interface WorkbenchTab {
   kind: TabKind;
   sessionId?: string;
   filePath?: string;
+  gitDiffTarget?: GitDiffTarget;
   dirty?: boolean;
 }
 

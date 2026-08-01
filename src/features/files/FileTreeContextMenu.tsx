@@ -1,7 +1,8 @@
-import { FilePlus2, FolderMinus, FolderSearch, Pencil, SquareTerminal } from "lucide-react";
+import { FileDiff, FilePlus2, FolderMinus, FolderSearch, Minus, Pencil, Plus, SquareTerminal } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useEffect } from "react";
 import type { TreeNode } from "../../domain/workbench/models";
+import type { GitFileChange } from "../../domain/git/models";
 
 interface FileTreeContextMenuProps {
   node: TreeNode;
@@ -13,6 +14,10 @@ interface FileTreeContextMenuProps {
   onCreateTerminal(): void;
   onReveal(): void;
   onRemoveRoot(): void;
+  gitChange?: GitFileChange;
+  onViewGitChange(): void;
+  onStage(): void;
+  onUnstage(): void;
 }
 
 export function FileTreeContextMenu({
@@ -25,6 +30,10 @@ export function FileTreeContextMenu({
   onCreateTerminal,
   onReveal,
   onRemoveRoot,
+  gitChange,
+  onViewGitChange,
+  onStage,
+  onUnstage,
 }: FileTreeContextMenuProps) {
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -35,11 +44,17 @@ export function FileTreeContextMenu({
   }, [onClose]);
 
   const left = Math.max(8, Math.min(x, window.innerWidth - 190));
-  const menuHeight = node.kind === "root" ? 202 : 166;
+  const gitActionCount = gitChange ? 1 + Number(Boolean(gitChange.worktreeStatus)) + Number(Boolean(gitChange.indexStatus)) : 0;
+  const menuHeight = (node.kind === "root" ? 202 : 166) + gitActionCount * 31 + (gitChange ? 7 : 0);
   const top = Math.max(8, Math.min(y, window.innerHeight - menuHeight));
 
   return createPortal(
-    <div className="context-menu-layer" role="presentation" onMouseDown={onClose}>
+    <div
+      className="context-menu-layer"
+      role="presentation"
+      onMouseDown={onClose}
+      onContextMenu={(event) => event.preventDefault()}
+    >
       <div
         className="file-context-menu"
         role="menu"
@@ -47,6 +62,24 @@ export function FileTreeContextMenu({
         style={{ left, top }}
         onMouseDown={(event) => event.stopPropagation()}
       >
+        {gitChange ? (
+          <>
+            <button type="button" role="menuitem" onClick={onViewGitChange}><FileDiff size={14} />查看更改</button>
+            {gitChange.worktreeStatus ? (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={onStage}
+              >
+                <Plus size={14} />暂存更改
+              </button>
+            ) : null}
+            {gitChange.indexStatus ? (
+              <button type="button" role="menuitem" onClick={onUnstage}><Minus size={14} />取消暂存</button>
+            ) : null}
+            <span className="context-menu-separator" />
+          </>
+        ) : null}
         <button type="button" role="menuitem" onClick={onCreateFile}><FilePlus2 size={14} />新建文件</button>
         <button type="button" role="menuitem" disabled={node.kind === "root"} onClick={onRename}><Pencil size={14} />重命名</button>
         <span className="context-menu-separator" />

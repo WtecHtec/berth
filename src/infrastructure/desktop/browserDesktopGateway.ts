@@ -38,9 +38,6 @@ export const browserDesktopGateway: DesktopGateway = {
   async renamePath() {
     throw new Error("重命名仅在桌面应用中可用");
   },
-  async gitDiff() {
-    throw new Error("Git Diff 仅在桌面应用中可用");
-  },
   async revealInFinder() {},
   async createWindow() {
     const nextWindow = window.open(window.location.href, "_blank");
