@@ -1,6 +1,6 @@
 import type { GitDiffResult, GitWorkspaceStatus } from "./models";
 
-/** Git-specific application boundary, kept separate from general desktop I/O. */
+/** Git 专用应用边界，与通用桌面 I/O 分离。 */
 export interface GitGateway {
   workspaceStatus(roots: string[]): Promise<GitWorkspaceStatus>;
   ignoredPaths(roots: string[], paths: string[]): Promise<string[]>;

@@ -9,7 +9,7 @@ interface HtmlPreviewState {
 
 const IDLE_STATE: HtmlPreviewState = { url: null, loading: false, error: null };
 
-/** Owns one HTML preview server and guarantees teardown on tab or mode changes. */
+/** 独占一个 HTML 预览服务，并保证标签或模式切换时停止服务。 */
 export function useHtmlPreviewService(
   path: string | undefined,
   content: string,

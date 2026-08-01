@@ -8,7 +8,7 @@ export type MarkdownBlock =
 
 const BLOCK_START = /^(?:#{1,6}\s|>\s?|```|~~~|(?:[-+*]|\d+\.)\s+|(?:---+|___+|\*\*\*+)\s*$)/u;
 
-/** Parses common Markdown blocks without executing embedded HTML. */
+/** 解析常用 Markdown 块，同时禁止执行内嵌 HTML。 */
 export function parseMarkdown(source: string): MarkdownBlock[] {
   const lines = source.replace(/\r\n?/gu, "\n").split("\n");
   const blocks: MarkdownBlock[] = [];

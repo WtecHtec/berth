@@ -9,7 +9,7 @@ function resistedRatio(value: number) {
   return value;
 }
 
-/** Pointer-captured, one-to-one split resizing with gentle edge resistance. */
+/** 使用指针捕获实现一比一分栏调整，并在边界提供轻微阻尼。 */
 export function usePanelResize(initialRatio = 0.55) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [ratio, setRatio] = useState(initialRatio);

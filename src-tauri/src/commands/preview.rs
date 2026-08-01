@@ -20,7 +20,7 @@ struct PreviewServerHandle {
 impl PreviewServerHandle {
     fn shutdown(self) {
         let _ = self.shutdown_sender.send(());
-        // Wake the blocking accept call so its thread can observe shutdown.
+        // 主动连接一次本地端口，唤醒阻塞中的 accept，让线程立即读取关闭信号。
         let _ = TcpStream::connect(self.address);
     }
 }
@@ -31,7 +31,7 @@ pub struct PreviewServerRegistry {
 }
 
 impl PreviewServerRegistry {
-    /** Stops preview threads owned by a window that is being destroyed. */
+    /** 原生窗口销毁时停止其所属预览线程，兜底覆盖前端未执行 effect cleanup 的情况。 */
     pub fn terminate_window(&self, window_label: &str) {
         let owned_servers = {
             let mut servers = self.servers.lock();
@@ -166,8 +166,7 @@ fn response_file(stream: &mut TcpStream, path: &Path, head_only: bool) {
     );
     let _ = stream.write_all(headers.as_bytes());
     if !head_only {
-        // Stream large assets directly instead of materializing an entire image,
-        // audio file, or video in the Rust process.
+        // 图片、音频和视频按流转发，避免 Rust 进程一次性持有完整媒体文件。
         let _ = std::io::copy(&mut file, stream);
     }
 }
@@ -288,6 +287,7 @@ pub fn start_html_preview(
         },
     );
 
+    // 每个预览使用独立的本地阻塞监听线程；关闭时由 PreviewServerHandle 主动唤醒。
     thread::spawn(move || {
         let entry_content = content.into_bytes();
         while let Ok((stream, _)) = listener.accept() {

@@ -123,7 +123,7 @@ fn is_conflict_status(index: u8, worktree: u8) -> bool {
     )
 }
 
-/** Parses Git's NUL-delimited porcelain v1 format without losing spaces in paths. */
+/** 解析以 NUL 分隔的 porcelain v1 输出，确保含空格和重命名的路径不会被拆错。 */
 fn parse_porcelain_status(output: &[u8], repository_root: &Path) -> Vec<GitFileChangeDto> {
     let records = output.split(|byte| *byte == 0).collect::<Vec<_>>();
     let mut changes = Vec::new();
@@ -140,7 +140,7 @@ fn parse_porcelain_status(output: &[u8], repository_root: &Path) -> Vec<GitFileC
         let relative_path = String::from_utf8_lossy(&record[3..]).to_string();
         let conflicted = is_conflict_status(index_code, worktree_code);
         let (index_status, worktree_status) = if conflicted {
-            // Conflicts remain working-tree actions until the user explicitly stages a resolution.
+            // 冲突在用户明确暂存解决结果前，继续归入工作区变更。
             (None, Some("conflicted"))
         } else if index_code == b'?' && worktree_code == b'?' {
             (None, Some("untracked"))
@@ -160,7 +160,7 @@ fn parse_porcelain_status(output: &[u8], repository_root: &Path) -> Vec<GitFileC
             });
         }
 
-        // In porcelain -z output a rename/copy is followed by its original path.
+        // porcelain -z 中重命名或复制记录后还跟着原路径，需要额外跳过一个记录。
         index += if matches!(index_code, b'R' | b'C') {
             2
         } else {
@@ -458,8 +458,8 @@ fn normalized_relative_path(path: &str) -> &str {
 }
 
 /**
- * Resolves repositories once per workspace root, then checks every loaded tree
- * path in batches. This avoids spawning one Git process per file-tree node.
+ * 每个工作区根目录只解析一次仓库，再按仓库批量检查已加载的树节点；
+ * 避免为文件树中的每个节点单独创建 Git 进程。
  */
 fn ignored_paths_blocking(roots: Vec<String>, paths: Vec<String>) -> Result<Vec<String>, String> {
     let mut repositories = Vec::<PathBuf>::new();
@@ -472,7 +472,7 @@ fn ignored_paths_blocking(roots: Vec<String>, paths: Vec<String>) -> Result<Vec<
             }
         }
     }
-    // A nested repository owns its paths before an enclosing repository does.
+    // 嵌套仓库优先认领自身路径，避免被外层仓库错误处理。
     repositories.sort_by_key(|repository| std::cmp::Reverse(repository.components().count()));
 
     let mut grouped = BTreeMap::<PathBuf, Vec<(String, String)>>::new();
@@ -523,7 +523,7 @@ fn ignored_paths_blocking(roots: Vec<String>, paths: Vec<String>) -> Result<Vec<
         let output = child
             .wait_with_output()
             .map_err(|error| format!("Ignore 检查失败：{error}"))?;
-        // Exit code 1 means that none of the candidate paths are ignored.
+        // git check-ignore 退出码 1 表示候选路径均未命中忽略规则，不属于错误。
         if !output.status.success() && output.status.code() != Some(1) {
             return Err(command_error("Ignore 检查", &output));
         }
@@ -550,7 +550,7 @@ pub async fn git_ignored_paths(
         .map_err(|error| format!("Ignore 检查任务失败：{error}"))?
 }
 
-/** Returns visible Git files for search, or None when the directory is not in a repository. */
+/** 返回遵循忽略规则的 Git 文件清单；目录不属于仓库时返回 None 以触发文件系统搜索。 */
 pub(crate) fn list_searchable_files(root: &Path) -> Result<Option<Vec<PathBuf>>, String> {
     if discover_repository(root)?.is_none() {
         return Ok(None);

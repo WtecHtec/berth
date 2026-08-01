@@ -3,7 +3,7 @@ import { Sparkles } from "../../shared/lib/icons";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
 
 export function QuickPhraseComposer({ sessionId }: { sessionId: string }) {
-  // Draft text belongs to one mounted terminal, never to the entire workspace.
+  // 草稿只属于当前终端组件，不在多个工作区或终端之间共享。
   const [input, setInput] = useState("");
   const phrases = useWorkbenchStore((state) => state.phrases);
   const enqueueTerminalInput = useWorkbenchStore((state) => state.enqueueTerminalInput);

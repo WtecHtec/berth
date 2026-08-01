@@ -63,6 +63,6 @@ export function saveWorkbenchLayout(roots: string[], layout: WorkbenchLayoutNode
     records[workspaceKey(roots)] = serializeLayoutShape(layout);
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
   } catch {
-    // Layout persistence is best-effort and must never block direct manipulation.
+    // 布局持久化采用尽力而为策略，失败时不能阻塞直接操作。
   }
 }

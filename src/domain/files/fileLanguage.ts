@@ -78,7 +78,7 @@ const LANGUAGE_ALIASES: Record<string, CodeLanguage> = {
   zsh: "shell",
 };
 
-/** Maps a real file path to the language understood by the highlighter. */
+/** 将真实文件路径映射为高亮器支持的语言类型。 */
 export function codeLanguageFromPath(path?: string): CodeLanguage {
   const fileName = path?.split(/[\\/]/u).pop()?.toLowerCase() ?? "";
   if (["dockerfile", "makefile"].includes(fileName)) return "shell";
@@ -86,7 +86,7 @@ export function codeLanguageFromPath(path?: string): CodeLanguage {
   return EXTENSION_LANGUAGES[extension] ?? "plaintext";
 }
 
-/** Normalizes Markdown fence aliases without leaking parser details into UI code. */
+/** 规范化 Markdown 代码围栏别名，避免解析细节泄漏到 UI。 */
 export function codeLanguageFromAlias(alias?: string): CodeLanguage {
   return LANGUAGE_ALIASES[alias?.trim().toLowerCase() ?? ""] ?? "plaintext";
 }

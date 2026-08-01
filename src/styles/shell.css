@@ -1,5 +1,5 @@
-.app-shell { position: relative; width: 100%; height: 100%; display: grid; grid-template-rows: 48px minmax(0, 1fr) 24px; overflow: hidden; }
-.app-shell--launcher { grid-template-rows: 48px minmax(0, 1fr); }
+.app-shell { --titlebar-height: 32px; position: relative; width: 100%; height: 100%; display: grid; grid-template-rows: var(--titlebar-height) minmax(0, 1fr) 24px; overflow: hidden; }
+.app-shell--launcher { grid-template-rows: var(--titlebar-height) minmax(0, 1fr); }
 .titlebar {
   position: relative;
   z-index: 20;

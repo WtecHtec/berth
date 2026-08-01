@@ -13,6 +13,7 @@ pub fn run() {
         .manage(PreviewServerRegistry::default())
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::Destroyed) {
+                // 原生窗口关闭不保证 React cleanup 一定执行，因此在应用边界再次回收资源。
                 let label = window.label();
                 window.state::<TerminalRegistry>().terminate_window(label);
                 window

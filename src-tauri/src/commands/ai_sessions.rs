@@ -237,8 +237,8 @@ fn list_codex_sessions(root: &str, limit: usize) -> Result<Vec<AiSessionSummary>
 }
 
 /**
- * Lists only recent metadata for each provider. Claude reads bounded file prefixes;
- * Codex uses its indexed state database, so transcript history never enters Berth.
+ * 每个工具只返回最近的会话元数据：Claude 限量读取 JSONL 文件头，Codex 查询本地索引库；
+ * 完整对话历史始终由原工具保存，不进入 Berth 的前端状态。
  */
 #[tauri::command]
 pub fn list_ai_sessions(roots: Vec<String>, limit_per_provider: usize) -> AiSessionListResponse {

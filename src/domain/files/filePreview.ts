@@ -6,7 +6,7 @@ const AUDIO_EXTENSIONS = new Set(["aac", "flac", "m4a", "mp3", "oga", "ogg", "wa
 const MARKDOWN_EXTENSIONS = new Set(["markdown", "md", "mdown", "mkd"]);
 const HTML_EXTENSIONS = new Set(["htm", "html"]);
 
-/** Keeps file-type decisions independent from React and the desktop adapter. */
+/** 将文件展示类型判断保持为纯业务规则，不依赖 React 或桌面适配器。 */
 export function filePresentation(path?: string): FilePresentation {
   const fileName = path?.split(/[\\/]/u).pop() ?? "";
   const separator = fileName.lastIndexOf(".");

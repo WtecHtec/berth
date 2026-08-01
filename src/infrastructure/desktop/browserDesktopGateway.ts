@@ -1,5 +1,5 @@
 import type { DesktopGateway } from "../../domain/desktop/DesktopGateway";
-/** Browser adapter exposes no fabricated filesystem or terminal data. */
+/** 浏览器适配器不暴露伪造的文件系统或终端数据。 */
 export const browserDesktopGateway: DesktopGateway = {
   kind: "browser",
   async pickFolder() {

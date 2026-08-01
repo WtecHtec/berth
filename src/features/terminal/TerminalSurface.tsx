@@ -6,6 +6,7 @@ import { quoteShellPath } from "../../shared/utils/shell";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
 import { useInternalPathDropTarget } from "../../hooks/useInternalPathDropTarget";
 import { publishTerminalCommandSubmitted } from "../../infrastructure/events/terminalCommandEvents";
+import { handleXtermKeyboardCompatibility } from "../../infrastructure/terminal/xtermKeyboardCompatibility";
 
 interface TerminalSurfaceProps {
   session?: TerminalSession;
@@ -28,7 +29,7 @@ function BrowserTerminal({ session }: TerminalSurfaceProps) {
   );
 }
 
-/** Loads xterm only inside Tauri so editor/media views never pay its runtime cost. */
+/** 仅在 Tauri 终端面板中动态加载 xterm，启动页和文件预览无需承担终端运行时开销。 */
 export function TerminalSurface({ session, selected = false }: TerminalSurfaceProps) {
   const dropTargetRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -38,7 +39,7 @@ export function TerminalSurface({ session, selected = false }: TerminalSurfacePr
   const insertDroppedPaths = useCallback((paths: string[]) => {
     const terminalId = terminalIdRef.current;
     if (!terminalId) return;
-    // Keep the command editable: insert quoted paths plus a separator, never Enter.
+    // 拖入路径只写入当前输入行，不自动回车；路径统一经过 shell 安全转义。
     const text = `${paths.map(quoteShellPath).join(" ")} `;
     void desktopGateway.writeTerminal(terminalId, new TextEncoder().encode(text));
     focusTerminalRef.current();
@@ -61,8 +62,7 @@ export function TerminalSurface({ session, selected = false }: TerminalSurfacePr
         allowProposedApi: false,
         cursorBlink: true,
         cursorStyle: "bar",
-        // Keep enough interactive history without multiplying a large buffer
-        // across every terminal in a multi-pane workspace.
+        // 每个终端独享缓冲区；限制回滚行数，避免多面板场景按终端数量放大内存。
         scrollback: 2000,
         fontFamily: "SFMono-Regular, SF Mono, Menlo, monospace",
         fontSize: 13,
@@ -77,6 +77,7 @@ export function TerminalSurface({ session, selected = false }: TerminalSurfacePr
       const fitAddon = new fit.FitAddon();
       terminal.loadAddon(fitAddon);
       terminal.open(hostRef.current);
+      terminal.attachCustomKeyEventHandler((event) => handleXtermKeyboardCompatibility(event, terminal));
       focusTerminalRef.current = () => terminal.focus();
       fitAddon.fit();
       cleanupTerminal = () => terminal.dispose();
@@ -97,21 +98,19 @@ export function TerminalSurface({ session, selected = false }: TerminalSurfacePr
           terminal.dispose();
           return;
         }
-        // Infrastructure failures belong in the terminal surface instead of
-        // becoming unhandled promises that can destabilize the entire shell.
+        // 基础设施错误直接写入对应终端，避免未处理 Promise 影响整个工作台。
         terminal.writeln(`\r\n\x1b[31m[无法启动终端]\x1b[0m ${String(error)}`);
         return;
       }
       const inputDisposable = terminal.onData((data) => {
         if (!terminalId) return;
         void desktopGateway.writeTerminal(terminalId, new TextEncoder().encode(data)).then(() => {
-          // Shells submit on carriage return; newlines also cover multi-line paste.
+          // 回车和多行粘贴都可能执行命令，统一发布事件以触发 Git 状态刷新。
           if (data.includes("\r") || data.includes("\n")) publishTerminalCommandSubmitted();
         });
       });
 
-      // Drain phrase requests in order. Each request is acknowledged only after
-      // the PTY accepts it, so identical consecutive phrases are never skipped.
+      // 快捷短语按队列顺序注入；PTY 成功接收后才确认消费，连续相同短语也不会丢失。
       const drainTerminalInputs = async () => {
         if (drainingInputs || disposed || !terminalId) return;
         drainingInputs = true;

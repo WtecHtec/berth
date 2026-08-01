@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { desktopGateway } from "../app/services";
 
-/** Owns the async desktop handoff so the terminal toolbar stays presentational. */
+/** 封装异步系统终端跳转，使终端工具栏保持纯展示职责。 */
 export function useOpenSystemTerminal(path?: string) {
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);

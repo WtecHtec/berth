@@ -39,7 +39,7 @@ function ensureListening() {
     });
 }
 
-/** Makes one selected terminal the sole receiver of native window file drops. */
+/** 原生窗口文件拖放只投递给当前选中终端，避免多面板重复接收。 */
 export function registerNativePathDropTarget(target: NativePathDropTarget) {
   const id = Symbol("native-path-drop-target");
   selectedTarget?.target.onHoverChange(false);

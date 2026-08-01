@@ -4,7 +4,7 @@ export type PhraseValidationResult =
   | { ok: true; value: QuickPhraseDraft }
   | { ok: false; error: string };
 
-/** Normalizes and validates phrase input before it enters application state. */
+/** 快捷短语进入应用状态前统一完成规范化和业务校验。 */
 export function validateQuickPhraseDraft(
   draft: QuickPhraseDraft,
   existing: QuickPhrase[],

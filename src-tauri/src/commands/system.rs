@@ -65,7 +65,7 @@ fn open_terminal(directory: &Path) -> Result<(), String> {
         .map_err(|error| format!("无法启动系统终端：{error}"))
 }
 
-/// Opens the native terminal at a validated working directory.
+/// 校验工作目录后，在系统终端中打开该路径。
 #[tauri::command]
 pub fn open_in_system_terminal(path: String) -> Result<(), String> {
     open_terminal(&resolve_terminal_directory(&path)?)
@@ -98,7 +98,7 @@ fn open_system_browser(url: &str) -> Result<(), String> {
         .map_err(|error| format!("无法启动默认浏览器：{error}"))
 }
 
-/// Opens only the loopback URL created by Berth's short-lived HTML preview server.
+/// 只允许打开 Berth 临时 HTML 服务生成的本机回环地址。
 #[tauri::command]
 pub fn open_preview_in_system_browser(url: String) -> Result<(), String> {
     open_system_browser(validate_preview_url(&url)?)

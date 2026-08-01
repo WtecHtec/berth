@@ -10,7 +10,7 @@ function directoryForNode(node: TreeNode) {
   return node.kind === "root" || node.kind === "folder" ? node.path : parentPath(node.path);
 }
 
-/** Coordinates file-tree commands while keeping platform I/O out of UI components. */
+/** 编排文件树命令，并将平台 I/O 隔离在 UI 组件之外。 */
 export function useFileTreeActions() {
   const [error, setError] = useState<string | null>(null);
   const setNodeChildren = useWorkbenchStore((state) => state.setNodeChildren);

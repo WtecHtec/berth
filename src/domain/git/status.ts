@@ -52,7 +52,7 @@ export function findGitChange(repositories: GitRepository[], path: string) {
   return null;
 }
 
-/** Returns an exact file status or `changed` for a folder containing modifications. */
+/** 文件返回精确状态；包含变更的目录返回聚合状态 `changed`。 */
 export function gitTreeStatus(
   repositories: GitRepository[],
   path: string,
@@ -90,7 +90,7 @@ function sameRepository(left: GitRepository, right: GitRepository) {
     && left.changes.every((change, index) => sameChange(change, right.changes[index]));
 }
 
-/** Prevents silent polling from repainting the Git tree when nothing changed. */
+/** 静默轮询结果未变化时复用旧引用，避免文件树重复渲染。 */
 export function sameGitWorkspaceStatus(left: GitWorkspaceStatus, right: GitWorkspaceStatus) {
   return left.warnings.length === right.warnings.length
     && left.warnings.every((warning, index) => warning === right.warnings[index])

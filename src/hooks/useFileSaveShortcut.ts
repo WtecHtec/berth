@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-/** Routes the platform save shortcut only to the file editor in the active pane. */
+/** 只把系统保存快捷键路由给当前活动面板中的文件编辑器。 */
 export function useFileSaveShortcut(enabled: boolean, onSave: () => void | Promise<void>) {
   const onSaveRef = useRef(onSave);
 
@@ -14,7 +14,7 @@ export function useFileSaveShortcut(enabled: boolean, onSave: () => void | Promi
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s") return;
       event.preventDefault();
-      // The editor displays save failures inline; consume the rejection here to avoid a global error.
+      // 编辑器会就地展示保存失败，此处消费 rejection，避免升级为全局错误。
       void Promise.resolve(onSaveRef.current()).catch(() => undefined);
     };
 

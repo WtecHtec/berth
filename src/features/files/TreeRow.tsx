@@ -62,8 +62,8 @@ export function TreeRow({ node, onContextMenu }: TreeRowProps) {
         onContextMenu={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          // WebKit can retain a text range after secondary-clicking a button.
-          // Clear only ranges anchored in this row so editor selections survive.
+          // WebKit 右键按钮后可能保留文本选区；只清理锚点位于当前行的选区，
+          // 避免影响编辑器中的正常文本选择。
           const selection = window.getSelection();
           const anchor = selection?.anchorNode;
           const focus = selection?.focusNode;

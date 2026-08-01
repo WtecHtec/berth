@@ -31,7 +31,7 @@ function collectLoadedPaths(nodes: TreeNode[], output: string[]) {
   }
 }
 
-/** Coalesces repository refreshes so an older Git process cannot overwrite newer state. */
+/** 合并并发刷新，并用序号阻止较早结束的 Git 进程覆盖较新的状态。 */
 export async function refreshGitWorkspace(roots: string[], initial = false, silent = false) {
   if (roots.length === 0) {
     useGitStore.getState().clear();
@@ -70,11 +70,11 @@ async function refreshIgnoredPaths(roots: string[], paths: string[]) {
     const ignored = await gitGateway.ignoredPaths(roots, paths);
     if (request === ignoreSequence) useGitStore.getState().replaceIgnoredPaths(ignored);
   } catch {
-    // Ignore decoration is supplementary; repository status remains usable if this check fails.
+    // 忽略文件装饰属于增强能力，检查失败时仍保留可用的仓库状态。
   }
 }
 
-/** Keeps Git status synchronized with workspace roots, lazy tree expansion, and app focus. */
+/** 协调工作区切换、文件树展开、窗口聚焦、终端命令与 Git 状态同步。 */
 export function useGitWorkspace() {
   const roots = useWorkbenchStore((state) => state.workspaceRoots);
   const tree = useWorkbenchStore((state) => state.tree);
@@ -119,6 +119,7 @@ export function useGitWorkspace() {
       if (canRunAutomaticRefresh() && !loading && !refreshing) {
         changed = await refreshGitWorkspace(rootsRef.current, false, true);
       }
+      // 仓库发生变化时恢复快速轮询；连续无变化时逐步退避，降低 Git 进程唤醒频率。
       interval = changed
         ? GIT_POLL_MIN_INTERVAL_MS
         : Math.min(GIT_POLL_MAX_INTERVAL_MS, interval * 2);

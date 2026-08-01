@@ -15,7 +15,7 @@ export interface ParsedUnifiedDiff {
 const HUNK_HEADER = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/u;
 const MAX_RENDERED_DIFF_LINES = 6_000;
 
-/** Parses only presentation metadata; Git remains the source of diff semantics. */
+/** 只解析展示所需元数据，Diff 的业务语义仍以 Git 输出为准。 */
 export function parseUnifiedDiff(content: string): ParsedUnifiedDiff {
   const sourceLines = content.split(/\r?\n/u);
   const visibleLines = sourceLines.slice(0, MAX_RENDERED_DIFF_LINES);

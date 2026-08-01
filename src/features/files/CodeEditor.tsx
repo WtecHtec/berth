@@ -9,7 +9,7 @@ interface CodeEditorProps {
   onChange(value: string): void;
 }
 
-/** Keeps native text editing on top of a synchronized, non-interactive highlight layer. */
+/** 原生 textarea 负责编辑，其下方同步一层不可交互的代码高亮。 */
 export function CodeEditor({ value, filePath, label, onChange }: CodeEditorProps) {
   const highlightRef = useRef<HTMLPreElement>(null);
   const [composing, setComposing] = useState(false);

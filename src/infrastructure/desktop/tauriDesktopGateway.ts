@@ -84,7 +84,7 @@ export const tauriDesktopGateway: DesktopGateway = {
         listener({ type: "leave" });
         return;
       }
-      // Tauri reports physical pixels while the DOM uses logical pixels.
+      // Tauri 返回物理像素，而 DOM 使用逻辑像素，需要按缩放因子换算。
       const position = {
         x: payload.position.x / scaleFactor,
         y: payload.position.y / scaleFactor,

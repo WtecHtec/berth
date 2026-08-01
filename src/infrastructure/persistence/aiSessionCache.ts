@@ -31,7 +31,7 @@ function readCache(): SessionCache {
   }
 }
 
-/** Returns cached metadata immediately while the native provider refreshes it. */
+/** 立即返回缓存元数据，同时由原生适配器在后台刷新。 */
 export function loadAiSessionCache(roots: string[]) {
   const cache = readCache();
   return roots.flatMap((root) => cache[root] ?? []);

@@ -37,7 +37,7 @@ fn terminate_processes(processes: impl IntoIterator<Item = TerminalProcess>) {
 }
 
 impl TerminalRegistry {
-    /** Releases PTYs even when a native window closes before React cleanup runs. */
+    /** 原生窗口直接销毁时按窗口释放 PTY，兜底覆盖 React 未执行卸载的情况。 */
     pub fn terminate_window(&self, window_label: &str) {
         let owned_processes = {
             let mut processes = self.processes.lock();
@@ -56,8 +56,7 @@ impl TerminalRegistry {
 
 impl Drop for TerminalRegistry {
     fn drop(&mut self) {
-        // Tauri may close the window while PTY reader threads are still alive.
-        // Drain ownership first, then terminate outside the registry lock.
+        // 应用退出时读取线程可能仍存活；先移出所有权，再在锁外终止并回收子进程。
         let processes = std::mem::take(&mut *self.processes.lock());
         terminate_processes(processes.into_values());
     }
@@ -85,8 +84,7 @@ fn resolve_cwd(path: &str) -> std::path::PathBuf {
 }
 
 /**
- * Creates a native POSIX pseudo-terminal. The PTY adapter owns process details;
- * callers only exchange byte streams through the application boundary.
+ * 创建原生 POSIX 伪终端。PTY 适配层独占进程细节，前端只通过 terminal_id 交换字节流。
  */
 #[tauri::command]
 pub fn spawn_terminal(
@@ -132,22 +130,19 @@ pub fn spawn_terminal(
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("zsh");
-    // macOS Terminal launches the user's shell as an interactive login shell.
-    // Prefixing argv[0] with '-' preserves the same startup-file and PATH behavior,
-    // so commands installed through .zprofile/.zshrc are available inside Berth.
+    // 使用交互式 login shell 对齐系统终端行为，使 .zprofile/.zshrc 中的 PATH 配置生效。
     command.arg0(format!("-{shell_name}"));
     command.current_dir(resolve_cwd(&cwd));
-    // npm injects this variable while running `tauri dev`; NVM deliberately
-    // refuses to initialize when it is present. A terminal must inherit the
-    // user's login configuration, not the package manager that launched Berth.
+    // `tauri dev` 会继承 npm_config_prefix，而 NVM 遇到它会拒绝初始化；终端不应继承
+    // 启动 Berth 的包管理器前缀，因此在创建 shell 前显式移除大小写两种变量。
     command.env_remove("npm_config_prefix");
     command.env_remove("NPM_CONFIG_PREFIX");
     command.env("SHELL", &shell);
     command.env("TERM", "xterm-256color");
     command.env("COLORTERM", "truecolor");
 
-    // SAFETY: `pre_exec` runs after fork and before exec. Only async-signal-safe
-    // libc calls are used to attach the slave side as the controlling terminal.
+    // SAFETY：pre_exec 位于 fork 与 exec 之间，只调用异步信号安全的 libc 接口，
+    // 将 slave fd 绑定为子进程的控制终端和标准输入输出。
     unsafe {
         command.pre_exec(move || {
             if libc::setsid() == -1 {
@@ -215,9 +210,8 @@ pub fn spawn_terminal(
             }
         }
 
-        // Reap naturally exited shells immediately. Killing is harmless if the
-        // child has already exited and prevents a broken PTY reader from leaving
-        // a live process behind.
+        // 读取结束后立即回收 shell。对已退出进程调用 kill 不会改变其退出结果，
+        // 同时可防止异常断流留下仍在运行的孤儿进程。
         drop(reader);
         let terminal = process_registry.lock().remove(&reader_terminal_id);
         let code = terminal.and_then(|mut terminal| {
@@ -275,8 +269,7 @@ pub fn kill_terminal(
     registry: State<'_, TerminalRegistry>,
 ) -> Result<(), String> {
     let Some(mut terminal) = registry.processes.lock().remove(&terminal_id) else {
-        // Cleanup is intentionally idempotent: a naturally exited shell may
-        // already have been reaped by its PTY reader thread.
+        // 清理保持幂等：自然退出的 shell 可能已由 PTY 读取线程提前回收。
         return Ok(());
     };
     terminal

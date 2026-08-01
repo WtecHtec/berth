@@ -117,7 +117,7 @@ function previousNonWhitespace(source: string, index: number): string {
   return source[index] ?? "";
 }
 
-/** Produces safe text tokens; React remains responsible for escaping all source content. */
+/** 只生成安全文本 token，源代码转义仍统一交给 React。 */
 export function highlightCode(source: string, language: CodeLanguage): SyntaxToken[] {
   if (!source || language === "plaintext" || source.length > MAX_HIGHLIGHT_LENGTH) {
     return [{ kind: "plain", value: source }];

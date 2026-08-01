@@ -7,7 +7,7 @@ import { useWorkbenchStore } from "../store/useWorkbenchStore";
 export const AI_SESSION_LIMIT_PER_PROVIDER = 20;
 export type AiSessionRefreshPhase = "idle" | "refreshing" | "complete";
 
-/** Loads cached metadata first, then refreshes bounded provider metadata in the background. */
+/** 先同步展示缓存元数据，再在后台限量刷新各工具的最新会话。 */
 export function useAiSessions() {
   const roots = useWorkbenchStore((state) => state.workspaceRoots);
   const [sessions, setSessions] = useState<AiSessionSummary[]>(() => loadAiSessionCache(roots));
@@ -42,7 +42,7 @@ export function useAiSessions() {
         return;
       }
 
-      // Keep a brief, non-blocking completion state so fast local reads still feel acknowledged.
+      // 短暂保留非阻塞的完成态，让极快的本地读取也有可感知反馈。
       setRefreshPhase("complete");
       completionTimer.current = setTimeout(() => {
         if (request === requestSequence.current) setRefreshPhase("idle");

@@ -6,7 +6,7 @@ interface LocalFileUrlState {
   error: string | null;
 }
 
-/** Resolves Tauri's range-aware asset URL only while a media surface is visible. */
+/** 仅在媒体视图可见时解析支持 Range 的 Tauri 本地资源地址。 */
 export function useLocalFileUrl(path: string | undefined, enabled: boolean): LocalFileUrlState {
   const [state, setState] = useState<LocalFileUrlState>({ url: null, error: null });
 

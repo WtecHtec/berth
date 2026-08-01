@@ -130,7 +130,7 @@ function mergePaneTabs(target: WorkbenchPane, sources: WorkbenchPane[]): Workben
   };
 }
 
-/** Reuses current pane instances and folds removed pane tabs into the main pane. */
+/** 复用现有面板实例，并把被布局移除的面板标签合并回主面板，避免会话丢失。 */
 function reconcilePresetPanes(
   panes: WorkbenchPane[],
   layout: WorkbenchLayoutNode,

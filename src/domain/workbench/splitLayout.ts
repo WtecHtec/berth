@@ -82,7 +82,7 @@ function createEqualTracks(axis: WorkbenchLayoutAxis, nodes: WorkbenchLayoutNode
   return split(axis, nodes[0], createEqualTracks(axis, nodes.slice(1)), 1 / nodes.length);
 }
 
-/** Converts a regular M × N choice into the same split tree used by custom layouts. */
+/** 将规则 M × N 网格转换为与自由布局共用的递归分割树。 */
 export function createGridLayout(
   grid: WorkbenchGridLayout,
   paneIds: string[],
@@ -118,7 +118,7 @@ export function inferGridLayout(node: WorkbenchLayoutNode): WorkbenchGridLayout 
   return { rows: rows.length, columns };
 }
 
-/** Builds common arrangements while always assigning the first pane to the main region. */
+/** 构建常用布局预设，并始终将第一个面板放在主区域。 */
 export function createPresetLayout(
   preset: WorkbenchLayoutPreset,
   paneIds: string[],
@@ -227,7 +227,7 @@ function swapPanes(node: WorkbenchLayoutNode, firstPaneId: string, secondPaneId:
   };
 }
 
-/** Moves a pane without touching its tabs or terminal session ownership. */
+/** 只移动面板布局节点，不改变标签和终端会话的所有权。 */
 export function movePaneInLayout(
   node: WorkbenchLayoutNode,
   sourcePaneId: string,

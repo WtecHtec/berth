@@ -34,7 +34,7 @@ export function saveQuickPhrases(phrases: QuickPhrase[]) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(phrases));
 }
 
-/** Keeps phrase libraries coherent when another Berth window changes them. */
+/** 其他 Berth 窗口修改快捷短语后，同步更新当前窗口。 */
 export function subscribeToQuickPhrases(listener: (phrases: QuickPhrase[]) => void) {
   const handleStorage = (event: StorageEvent) => {
     if (event.key === STORAGE_KEY) listener(parseQuickPhrases(event.newValue));

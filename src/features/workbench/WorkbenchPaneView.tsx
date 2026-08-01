@@ -32,9 +32,8 @@ export function WorkbenchPaneView({ pane, onPaneDragStart }: WorkbenchPaneViewPr
     );
   }
 
-  // PTYs must stay mounted to preserve their live process and terminal buffer.
-  // Clean document and diff tabs can be recreated on demand, while dirty files
-  // remain mounted so an unsaved draft is never discarded by tab switching.
+  // 终端标签必须常驻，才能保留 PTY 进程和 xterm 缓冲区；普通文件与 Diff 可按需重建。
+  // 未保存文件是例外：即使切到后台也继续挂载，避免组件卸载导致草稿丢失。
   const mountedTabs = pane.tabs.filter((tab) => (
     tab.id === activeTab.id || tab.kind === "terminal" || tab.dirty
   ));

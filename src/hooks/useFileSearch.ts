@@ -5,7 +5,7 @@ import { useWorkbenchStore } from "../store/useWorkbenchStore";
 
 const SEARCH_DEBOUNCE_MS = 120;
 
-/** Owns asynchronous workspace search while keeping filesystem I/O out of UI components. */
+/** 管理异步工作区搜索，并将文件系统 I/O 隔离在 UI 之外。 */
 export function useFileSearch(enabled: boolean) {
   const roots = useWorkbenchStore((state) => state.workspaceRoots);
   const [query, setQuery] = useState("");

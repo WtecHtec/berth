@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { desktopGateway } from "../app/services";
 
-/** Coordinates new-window creation without coupling command UI to Tauri. */
+/** 编排新窗口创建，避免命令面板直接依赖 Tauri。 */
 export function useCreateAppWindow() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);

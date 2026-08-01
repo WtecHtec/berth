@@ -33,6 +33,7 @@ const SEARCH_RESULT_LIMIT: usize = 200;
 const IGNORED_SEARCH_DIRECTORIES: [&str; 4] = [".git", "node_modules", "target", ".next"];
 const MAX_EDITABLE_FILE_BYTES: u64 = 5 * 1024 * 1024;
 
+/** 在进入 WebView 前限制完整文本大小，避免 content、draft 与高亮节点叠加占用内存。 */
 fn ensure_editable_file_size(size: u64) -> Result<(), String> {
     if size > MAX_EDITABLE_FILE_BYTES {
         return Err("文件超过 5 MB，为避免占用过多内存，Berth 不会直接加载该文件".to_string());
@@ -156,7 +157,7 @@ fn search_files_blocking(
             .unwrap_or_else(|| root.to_string_lossy().to_string());
         match list_searchable_files(&root) {
             Ok(Some(paths)) => {
-                // Git supplies tracked and untracked files while honoring all standard ignore sources.
+                // Git 仓库优先使用 Git 文件清单，自动遵循仓库、全局和 exclude 忽略规则。
                 for path in paths {
                     if results.len() >= SEARCH_RESULT_LIMIT {
                         break;
@@ -190,7 +191,7 @@ fn search_files_blocking(
                     });
                 }
             }
-            // Non-Git roots retain the existing bounded filesystem search behavior.
+            // 非 Git 根目录退回有结果上限的递归文件系统搜索。
             Ok(None) | Err(_) => {
                 collect_matching_files(&root, &root, &root_label, &normalized_query, &mut results)
             }

@@ -2,7 +2,7 @@ import type { GitDiffTarget } from "../git/models";
 
 export type SessionStatus = "running" | "waiting" | "exited";
 
-/** A terminal session Berth observes. It is deliberately provider-agnostic. */
+/** Berth 管理的终端会话模型，刻意保持与 Claude/Codex 等工具无关。 */
 export interface TerminalSession {
   id: string;
   title: string;
@@ -16,7 +16,7 @@ export interface TerminalSession {
   aiSession?: Pick<AiSessionSummary, "id" | "provider">;
 }
 
-/** One editable input payload waiting to be written to a specific PTY. */
+/** 等待写入指定 PTY 的一次可编辑输入请求。 */
 export interface TerminalInputRequest {
   id: string;
   content: string;
@@ -25,7 +25,7 @@ export interface TerminalInputRequest {
 
 export type AiSessionProvider = "claude" | "codex";
 
-/** Metadata-only history row. Conversation turns never enter frontend state. */
+/** 只包含元数据的历史会话；完整对话内容不会进入前端状态。 */
 export interface AiSessionSummary {
   id: string;
   provider: AiSessionProvider;
@@ -87,7 +87,7 @@ export interface WorkbenchGridLayout {
   columns: number;
 }
 
-/** A recursive split tree keeps layout independent from pane business state. */
+/** 递归分割树只描述布局，使其与面板业务状态保持独立。 */
 export type WorkbenchLayoutNode =
   | {
       type: "pane";

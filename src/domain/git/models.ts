@@ -8,7 +8,7 @@ export type GitChangeKind =
 
 export type GitDiffMode = "working" | "staged";
 
-/** One path can have independent index and working-tree changes. */
+/** 同一路径可以同时拥有暂存区与工作区两套独立状态。 */
 export interface GitFileChange {
   path: string;
   relativePath: string;

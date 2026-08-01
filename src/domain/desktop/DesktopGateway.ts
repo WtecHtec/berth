@@ -16,8 +16,8 @@ export interface HtmlPreviewSession {
 }
 
 /**
- * Application-facing boundary for operating-system capabilities.
- * UI components never import Tauri directly, keeping browser previews testable.
+ * 面向应用层的操作系统能力边界。UI 组件不直接导入 Tauri，
+ * 从而保持浏览器预览可运行、平台实现可替换。
  */
 export interface DesktopGateway {
   readonly kind: "tauri" | "browser";

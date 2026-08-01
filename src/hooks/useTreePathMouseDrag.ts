@@ -14,8 +14,8 @@ function setGlobalDragCursor(active: boolean) {
 }
 
 /**
- * Implements an internal desktop drag without HTML5 DnD or Pointer Capture.
- * Window listeners keep receiving mouse coordinates across the whole WebView.
+ * 不依赖 HTML5 DnD 或 Pointer Capture 实现应用内路径拖拽；
+ * 通过 window 监听器持续接收整个 WebView 范围内的鼠标坐标。
  */
 export function useTreePathMouseDrag(path: string) {
   const originRef = useRef<{ x: number; y: number } | null>(null);
@@ -49,8 +49,8 @@ export function useTreePathMouseDrag(path: string) {
         draggingRef.current = false;
         setIsDragging(false);
         setGlobalDragCursor(false);
-        // A click synthesized from this mouseup fires before the next task and
-        // is still suppressed; do not let the flag consume a later real click.
+        // mouseup 合成的 click 会在下一个任务前触发并被抑制；随后立即复位，
+        // 避免误吞用户下一次真实点击。
         if (suppressClickRef.current) {
           window.setTimeout(() => {
             suppressClickRef.current = false;

@@ -42,6 +42,8 @@ export function FileViewer({ tab, active }: { tab: WorkbenchTab; active: boolean
 
   const filePath = tab.filePath ?? "";
   const showEditor = editable && !previewing;
+  // Markdown 由内容区承载长文档滚动；HTML iframe 与媒体预览仍锁定在面板尺寸内。
+  const clipPreviewOverflow = presentation !== "markdown" && (!editable || previewing);
 
   return (
     <div className="file-viewer">
@@ -66,7 +68,7 @@ export function FileViewer({ tab, active }: { tab: WorkbenchTab; active: boolean
           <IconButton label="在访达中显示" onClick={() => tab.filePath && void desktopGateway.revealInFinder(tab.filePath)}><ExternalLink size={14} /></IconButton>
         </div>
       </div>
-      <div className={`file-content ${!editable || previewing ? "file-content--preview" : ""}`}>
+      <div className={`file-content ${clipPreviewOverflow ? "file-content--preview" : ""}`}>
         {editable && loading ? <div className="content-state">正在读取文件…</div> : null}
         {editable && error ? <div className="content-state content-state--error">{error}</div> : null}
         {saveError ? <div className="file-save-error" role="alert">保存失败：{saveError}</div> : null}

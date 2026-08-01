@@ -7,7 +7,7 @@ interface HighlightedCodeProps {
   language: CodeLanguage;
 }
 
-/** Shared renderer for editor overlays and read-only Markdown code blocks. */
+/** 编辑器高亮层与 Markdown 代码块共用的安全 token 渲染器。 */
 export function HighlightedCode({ code, language }: HighlightedCodeProps) {
   const tokens = useMemo(() => highlightCode(code, language), [code, language]);
   return tokens.map((token, index) => (

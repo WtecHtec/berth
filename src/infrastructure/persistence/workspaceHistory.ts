@@ -30,7 +30,7 @@ function workspaceName(roots: string[]) {
     .join(", ");
 }
 
-/** Stores the current root combination as one recent window record. */
+/** 将当前根目录组合保存为一条最近窗口记录。 */
 export function rememberWorkspace(roots: string[]) {
   if (roots.length === 0) return [];
   const record: WorkspaceRecord = {

@@ -3,7 +3,7 @@ import { desktopGateway } from "../app/services";
 import { rememberWorkspace } from "../infrastructure/persistence/workspaceHistory";
 import { useWorkbenchStore } from "../store/useWorkbenchStore";
 
-/** Adds one selected folder as a new root in the current window. */
+/** 将用户选择的文件夹追加为当前窗口的新根目录。 */
 export function useAppendWorkspaceFolder() {
   const appendWorkspaceRoot = useWorkbenchStore((state) => state.appendWorkspaceRoot);
   const setRecentWorkspaces = useWorkbenchStore((state) => state.setRecentWorkspaces);

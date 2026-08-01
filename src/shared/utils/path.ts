@@ -1,4 +1,4 @@
-/** Returns the containing directory without depending on Node's path module. */
+/** 在不依赖 Node path 模块的前提下返回父目录。 */
 export function parentPath(path: string): string {
   const normalized = path.replace(/[\\/]+$/u, "");
   const separatorIndex = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"));

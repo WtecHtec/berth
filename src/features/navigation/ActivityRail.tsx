@@ -3,7 +3,7 @@ import { IconButton } from "../../shared/ui/IconButton";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
 
 export function ActivityRail() {
-  // Atomic selectors keep React 19's external-store snapshot referentially stable.
+  // 使用原子选择器保持 React 19 外部 store 快照的引用稳定，减少无关更新。
   const sessionsCollapsed = useWorkbenchStore((state) => state.sessionsCollapsed);
   const filesCollapsed = useWorkbenchStore((state) => state.filesCollapsed);
   const sidebarView = useWorkbenchStore((state) => state.sidebarView);

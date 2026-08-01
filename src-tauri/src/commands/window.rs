@@ -1,7 +1,7 @@
 use tauri::{AppHandle, WebviewWindowBuilder};
 use uuid::Uuid;
 
-/// Creates another launcher window using the same native configuration as the main window.
+/// 使用与主窗口一致的原生配置创建一个新的启动页窗口。
 #[tauri::command]
 pub async fn create_app_window(app: AppHandle) -> Result<(), String> {
     let mut config = app
