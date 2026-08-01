@@ -27,7 +27,7 @@ export function SettingsSheet() {
   return (
     <div className="sheet-scrim" role="presentation" onMouseDown={closeSheet}>
       <aside className="settings-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title" onMouseDown={(event) => event.stopPropagation()}>
-        <header><div><span>BERTH</span><h2 id="settings-title">快捷短语</h2></div><IconButton label="关闭设置" onClick={closeSheet}><X size={16} /></IconButton></header>
+        <header><div><span>BERTH</span><h2 id="settings-title">设置</h2></div><IconButton label="关闭设置" onClick={closeSheet}><X size={16} /></IconButton></header>
         <div className="settings-scroll">
           <section className="settings-section phrase-settings">
             <div className="settings-section__heading"><div><h3>短语库</h3><p>通过前缀查找并向当前终端注入常用内容。</p></div><button className="mini-button" type="button" onClick={() => { setActionError(null); setEditor({ mode: "create" }); }}><Plus size={13} />新增</button></div>
@@ -63,6 +63,12 @@ export function SettingsSheet() {
                 ))
               )}
             </div>
+          </section>
+          <section className="settings-section app-version-setting" aria-labelledby="build-version-title">
+            <div>
+              <h3 id="build-version-title">版本</h3>
+            </div>
+            <code aria-label={`构建版本 ${__BERTH_BUILD_VERSION__}`}>{__BERTH_BUILD_VERSION__}</code>
           </section>
         </div>
       </aside>

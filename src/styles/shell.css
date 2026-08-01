@@ -210,6 +210,10 @@
 .git-change-group__heading { height: 23px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; color: #7f8994; font-size: 8.5px; font-weight: 620; }
 .git-change-row { min-width: 0; height: 30px; display: grid; grid-template-columns: minmax(0,1fr) 25px; align-items: center; position: relative; border-radius: 5px; }
 .git-change-row:hover, .git-change-row:focus-within { background: var(--surface-1); }
+.git-change-row.is-selected { background: var(--blue-soft); }
+.git-change-row.is-selected::before { width: 2px; height: 14px; content: ""; position: absolute; left: 1px; top: 8px; border-radius: 999px; background: var(--blue); pointer-events: none; }
+.git-change-row.is-selected .git-change-row__main { color: var(--text-1); }
+.git-change-row.is-selected .git-change-row__copy small { color: #8291a1; }
 .git-change-row__main { min-width: 0; height: 100%; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 4px; padding: 0 3px 0 8px; color: var(--text-2); border: 0; background: transparent; text-align: left; }
 .git-change-row__copy { min-width: 0; display: flex; align-items: baseline; gap: 5px; overflow: hidden; }
 .git-change-row__copy strong { overflow: hidden; color: inherit; font-size: 9.5px; font-weight: 520; text-overflow: ellipsis; white-space: nowrap; }

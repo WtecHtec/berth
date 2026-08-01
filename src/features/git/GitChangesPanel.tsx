@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { GitChangeKind, GitDiffMode, GitFileChange, GitRepository } from "../../domain/git/models";
+import type { GitChangeKind, GitDiffMode, GitDiffTarget, GitFileChange, GitRepository } from "../../domain/git/models";
 import { fileName, gitStatusLabel, gitStatusLetter, relativeParent } from "../../domain/git/status";
 import { useGitActions } from "../../hooks/useGitWorkspace";
 import { useGitStore } from "../../store/useGitStore";
@@ -13,26 +13,29 @@ import {
   Undo2,
 } from "lucide-react";
 import { IconButton } from "../../shared/ui/IconButton";
+import { useWorkbenchStore } from "../../store/useWorkbenchStore";
 
 interface ChangeRowProps {
   repository: GitRepository;
   change: GitFileChange;
   mode: GitDiffMode;
   status: GitChangeKind;
+  selected: boolean;
   actions: ReturnType<typeof useGitActions>;
 }
 
-function ChangeRow({ repository, change, mode, status, actions }: ChangeRowProps) {
+function ChangeRow({ repository, change, mode, status, selected, actions }: ChangeRowProps) {
   const repositoryBusy = useGitStore((state) => Boolean(state.busyPaths[repository.root]));
   const busy = useGitStore((state) => state.busyPaths[change.path]);
   const parent = relativeParent(change.relativePath);
   const staged = mode === "staged";
 
   return (
-    <div className="git-change-row">
+    <div className={`git-change-row ${selected ? "is-selected" : ""}`}>
       <button
         type="button"
         className="git-change-row__main"
+        aria-current={selected ? "true" : undefined}
         title={`${gitStatusLabel(status)} · ${change.relativePath}`}
         onClick={() => actions.openDiff(repository, change, mode)}
       >
@@ -61,10 +64,11 @@ interface ChangeGroupProps {
   repository: GitRepository;
   mode: GitDiffMode;
   changes: Array<{ change: GitFileChange; status: GitChangeKind }>;
+  selectedTarget?: GitDiffTarget;
   actions: ReturnType<typeof useGitActions>;
 }
 
-function ChangeGroup({ title, repository, mode, changes, actions }: ChangeGroupProps) {
+function ChangeGroup({ title, repository, mode, changes, selectedTarget, actions }: ChangeGroupProps) {
   if (changes.length === 0) return null;
   return (
     <section className="git-change-group" aria-label={`${repository.name} ${title}`}>
@@ -79,6 +83,9 @@ function ChangeGroup({ title, repository, mode, changes, actions }: ChangeGroupP
           change={change}
           mode={mode}
           status={status}
+          selected={selectedTarget?.repositoryRoot === repository.root
+            && selectedTarget.path === change.path
+            && selectedTarget.mode === mode}
           actions={actions}
         />
       ))}
@@ -90,10 +97,11 @@ interface RepositorySectionProps {
   repository: GitRepository;
   expanded: boolean;
   onToggle(): void;
+  selectedTarget?: GitDiffTarget;
   actions: ReturnType<typeof useGitActions>;
 }
 
-function RepositorySection({ repository, expanded, onToggle, actions }: RepositorySectionProps) {
+function RepositorySection({ repository, expanded, onToggle, selectedTarget, actions }: RepositorySectionProps) {
   const busy = useGitStore((state) => state.busyPaths[repository.root]);
   const working = repository.changes.flatMap((change) => (
     change.worktreeStatus ? [{ change, status: change.worktreeStatus }] : []
@@ -140,8 +148,8 @@ function RepositorySection({ repository, expanded, onToggle, actions }: Reposito
       </div>
       {expanded ? (
         <div className="git-repository__content">
-          <ChangeGroup title="已暂存的更改" repository={repository} mode="staged" changes={staged} actions={actions} />
-          <ChangeGroup title="更改" repository={repository} mode="working" changes={working} actions={actions} />
+          <ChangeGroup title="已暂存的更改" repository={repository} mode="staged" changes={staged} selectedTarget={selectedTarget} actions={actions} />
+          <ChangeGroup title="更改" repository={repository} mode="working" changes={working} selectedTarget={selectedTarget} actions={actions} />
           {count === 0 ? <div className="git-repository__clean">没有待处理的更改</div> : null}
         </div>
       ) : null}
@@ -160,6 +168,11 @@ export function GitChangesPanel({ collapsed }: GitChangesPanelProps) {
   const error = useGitStore((state) => state.error);
   const warnings = useGitStore((state) => state.warnings);
   const setError = useGitStore((state) => state.setError);
+  // 源码管理选中态跟随当前活动面板的 diff 标签，而不是只按路径判断。
+  const selectedTarget = useWorkbenchStore((state) => {
+    const pane = state.panes.find((item) => item.id === state.activePaneId);
+    return pane?.tabs.find((tab) => tab.id === pane.activeTabId)?.gitDiffTarget;
+  });
   const actions = useGitActions();
   const [selectedRoot, setSelectedRoot] = useState("all");
   const [collapsedRoots, setCollapsedRoots] = useState<Record<string, true>>({});
@@ -216,6 +229,7 @@ export function GitChangesPanel({ collapsed }: GitChangesPanelProps) {
             key={repository.root}
             repository={repository}
             actions={actions}
+            selectedTarget={selectedTarget}
             expanded={!collapsedRoots[repository.root]}
             onToggle={() => setCollapsedRoots((current) => {
               const next = { ...current };
