@@ -2,6 +2,7 @@ import type { DesktopGateway } from "../../domain/desktop/DesktopGateway";
 /** 浏览器适配器不暴露伪造的文件系统或终端数据。 */
 export const browserDesktopGateway: DesktopGateway = {
   kind: "browser",
+  async configureCommandEnvironment() {},
   async pickFolder() {
     return null;
   },

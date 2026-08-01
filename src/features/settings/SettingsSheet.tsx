@@ -4,6 +4,7 @@ import { Pencil, Plus, Trash2, X } from "../../shared/lib/icons";
 import { IconButton } from "../../shared/ui/IconButton";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
 import { QuickPhraseForm } from "./QuickPhraseForm";
+import { CommandEnvironmentForm } from "./CommandEnvironmentForm";
 
 type PhraseEditorState = { mode: "create" } | { mode: "edit"; phrase: QuickPhrase } | null;
 
@@ -29,6 +30,12 @@ export function SettingsSheet() {
       <aside className="settings-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title" onMouseDown={(event) => event.stopPropagation()}>
         <header><div><span>BERTH</span><h2 id="settings-title">设置</h2></div><IconButton label="关闭设置" onClick={closeSheet}><X size={16} /></IconButton></header>
         <div className="settings-scroll">
+          <section className="settings-section environment-settings">
+            <div className="settings-section__heading">
+              <div><h3>运行环境</h3><p>统一配置 Git 与新建终端查找命令时使用的环境。</p></div>
+            </div>
+            <CommandEnvironmentForm />
+          </section>
           <section className="settings-section phrase-settings">
             <div className="settings-section__heading"><div><h3>短语库</h3><p>通过前缀查找并向当前终端注入常用内容。</p></div><button className="mini-button" type="button" onClick={() => { setActionError(null); setEditor({ mode: "create" }); }}><Plus size={13} />新增</button></div>
             {editor ? (

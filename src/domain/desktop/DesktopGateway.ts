@@ -1,4 +1,5 @@
 import type { AiSessionListResponse, TreeNode } from "../workbench/models";
+import type { CommandEnvironmentSettings } from "../environment/models";
 
 export interface TerminalCallbacks {
   onData(data: Uint8Array): void;
@@ -21,6 +22,7 @@ export interface HtmlPreviewSession {
  */
 export interface DesktopGateway {
   readonly kind: "tauri" | "browser";
+  configureCommandEnvironment(settings: CommandEnvironmentSettings): Promise<void>;
   pickFolder(): Promise<string | null>;
   listDirectory(path: string): Promise<TreeNode[]>;
   searchFiles(roots: string[], query: string): Promise<TreeNode[]>;

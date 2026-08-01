@@ -1,3 +1,4 @@
+mod command_environment;
 mod commands;
 mod terminal;
 
@@ -22,6 +23,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            command_environment::configure_command_environment,
             commands::ai_sessions::list_ai_sessions,
             commands::files::list_directory,
             commands::files::search_files,

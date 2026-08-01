@@ -1,3 +1,4 @@
+use crate::command_environment::apply_to_command;
 use parking_lot::Mutex;
 use serde::Serialize;
 use std::{
@@ -133,10 +134,8 @@ pub fn spawn_terminal(
     // 使用交互式 login shell 对齐系统终端行为，使 .zprofile/.zshrc 中的 PATH 配置生效。
     command.arg0(format!("-{shell_name}"));
     command.current_dir(resolve_cwd(&cwd));
-    // `tauri dev` 会继承 npm_config_prefix，而 NVM 遇到它会拒绝初始化；终端不应继承
-    // 启动 Berth 的包管理器前缀，因此在创建 shell 前显式移除大小写两种变量。
-    command.env_remove("npm_config_prefix");
-    command.env_remove("NPM_CONFIG_PREFIX");
+    // Git 与终端共用受控环境，确保 Finder 启动时也能找到 Homebrew/NVM 工具。
+    apply_to_command(&mut command);
     command.env("SHELL", &shell);
     command.env("TERM", "xterm-256color");
     command.env("COLORTERM", "truecolor");

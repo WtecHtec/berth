@@ -13,6 +13,10 @@ async function tauriCore() {
 
 export const tauriDesktopGateway: DesktopGateway = {
   kind: "tauri",
+  async configureCommandEnvironment(settings) {
+    const { invoke } = await tauriCore();
+    await invoke("configure_command_environment", { settingsValue: settings });
+  },
   async pickFolder() {
     const { open } = await import("@tauri-apps/plugin-dialog");
     const selected = await open({ directory: true, multiple: false, title: "打开文件夹" });

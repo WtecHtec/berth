@@ -1,3 +1,4 @@
+use crate::command_environment::configured_command;
 use serde::Serialize;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -55,12 +56,16 @@ fn command_error(action: &str, output: &Output) -> String {
 }
 
 fn git_output(directory: &Path, arguments: &[&str]) -> Result<Output, String> {
-    Command::new("git")
+    git_command()
         .arg("-C")
         .arg(directory)
         .args(arguments)
         .output()
         .map_err(|error| format!("无法运行 Git：{error}"))
+}
+
+fn git_command() -> Command {
+    configured_command("git")
 }
 
 fn discover_repository(path: &Path) -> Result<Option<PathBuf>, String> {
@@ -189,7 +194,7 @@ fn workspace_status_blocking(roots: Vec<String>) -> Result<GitWorkspaceStatusDto
 
     let mut repositories = Vec::new();
     for (repository_root, workspace_roots) in grouped_roots {
-        let mut command = Command::new("git");
+        let mut command = git_command();
         command.arg("-C").arg(&repository_root).args([
             "status",
             "--porcelain=v1",
@@ -275,7 +280,7 @@ fn run_path_mutation(
     arguments: &[&str],
 ) -> Result<(), String> {
     let (repository, relative) = checked_relative_path(&repository_root, &path)?;
-    let mut command = Command::new("git");
+    let mut command = git_command();
     command
         .arg("-C")
         .arg(&repository)
@@ -305,7 +310,7 @@ fn unstage_blocking(repository_root: String, path: String) -> Result<(), String>
     let has_head = git_output(&repository, &["rev-parse", "--verify", "HEAD"])
         .map(|output| output.status.success())
         .unwrap_or(false);
-    let mut command = Command::new("git");
+    let mut command = git_command();
     command.arg("-C").arg(&repository);
     if has_head {
         command.args(["restore", "--staged", "--"]).arg(relative);
@@ -383,7 +388,7 @@ pub async fn git_unstage_all(repository_root: String) -> Result<(), String> {
 }
 
 fn is_tracked(repository: &Path, relative: &Path) -> bool {
-    Command::new("git")
+    git_command()
         .arg("-C")
         .arg(repository)
         .args(["ls-files", "--error-unmatch", "--"])
@@ -400,7 +405,7 @@ fn diff_blocking(
 ) -> Result<GitDiffDto, String> {
     let (repository, relative) = checked_relative_path(&repository_root, &path)?;
     let untracked = !staged && !is_tracked(&repository, &relative);
-    let mut command = Command::new("git");
+    let mut command = git_command();
     command.arg("-C").arg(&repository);
     if untracked {
         command
@@ -503,7 +508,7 @@ fn ignored_paths_blocking(roots: Vec<String>, paths: Vec<String>) -> Result<Vec<
             .iter()
             .map(|(relative, path)| (normalized_relative_path(relative).to_string(), path.clone()))
             .collect::<HashMap<_, _>>();
-        let mut child = Command::new("git")
+        let mut child = git_command()
             .arg("-C")
             .arg(&repository)
             .args(["check-ignore", "--no-index", "-z", "--stdin"])
