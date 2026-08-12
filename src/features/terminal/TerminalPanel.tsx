@@ -21,7 +21,7 @@ export function TerminalPanel({ tab, session, selected }: TerminalPanelProps) {
           <span className={`process-indicator process-indicator--${session?.status ?? "running"}`} />
           <strong>{session?.processLabel ?? "shell"}</strong>
           <span className="toolbar-separator" />
-          <span>{session?.cwd}</span>
+          <span>{session?.ssh ? `${session.ssh.siteId}:${session.ssh.remotePath}` : session?.cwd}</span>
           {session?.branch ? <span className="branch-label"><GitBranch size={12} />{session.branch}</span> : null}
         </div>
         <div className="panel-toolbar__actions">

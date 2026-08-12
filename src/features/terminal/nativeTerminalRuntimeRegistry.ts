@@ -4,6 +4,10 @@ import { desktopGateway } from "../../app/services";
 import type { TerminalSession } from "../../domain/workbench/models";
 import { publishTerminalCommandSubmitted } from "../../infrastructure/events/terminalCommandEvents";
 import { handleXtermKeyboardCompatibility } from "../../infrastructure/terminal/xtermKeyboardCompatibility";
+import {
+  collectSubmittedCommands,
+  extractSshDestination,
+} from "../../infrastructure/terminal/sshCommand";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
 
 interface NativeTerminalRuntime {
@@ -17,10 +21,19 @@ interface NativeTerminalRuntime {
   stopInputQueue?: () => void;
   observer?: ResizeObserver;
   resizeFrame?: number;
+  pendingDimensions?: TerminalDimensions;
+  lastDimensions?: TerminalDimensions;
+  resizing: boolean;
   initializePromise?: Promise<void>;
   disposeTimer?: number;
   disposed: boolean;
   drainingInputs: boolean;
+  commandBuffer: string;
+}
+
+interface TerminalDimensions {
+  rows: number;
+  cols: number;
 }
 
 export interface NativeTerminalAttachment {
@@ -33,6 +46,46 @@ export interface NativeTerminalAttachment {
 const runtimes = new Map<string, NativeTerminalRuntime>();
 const RELEASE_GRACE_PERIOD_MS = 800;
 const MIN_RENDERABLE_HOST_SIZE = 32;
+
+function sameDimensions(first?: TerminalDimensions, second?: TerminalDimensions) {
+  return first?.rows === second?.rows && first?.cols === second?.cols;
+}
+
+/**
+ * 每个 PTY 只保留最新尺寸并串行写入，避免多终端/连续拖动时旧的异步 resize 后到覆盖新尺寸。
+ */
+async function flushPendingResize(runtime: NativeTerminalRuntime) {
+  if (runtime.resizing || !runtime.terminalId || runtime.disposed) return;
+  runtime.resizing = true;
+  try {
+    while (runtime.pendingDimensions && runtime.terminalId && !runtime.disposed) {
+      const dimensions = runtime.pendingDimensions;
+      runtime.pendingDimensions = undefined;
+      if (sameDimensions(dimensions, runtime.lastDimensions)) continue;
+      try {
+        await desktopGateway.resizeTerminal(runtime.terminalId, dimensions.rows, dimensions.cols);
+        runtime.lastDimensions = dimensions;
+      } catch {
+        // 终端可能恰好在异步 resize 期间退出；清理流程会负责回收 PTY。
+        break;
+      }
+    }
+  } finally {
+    runtime.resizing = false;
+    // finally 前可能又写入了新尺寸；再次启动泵，确保最后一次布局不会遗漏。
+    if (runtime.pendingDimensions) void flushPendingResize(runtime);
+  }
+}
+
+function queuePtyResize(runtime: NativeTerminalRuntime, dimensions: TerminalDimensions) {
+  runtime.pendingDimensions = dimensions;
+  void flushPendingResize(runtime);
+}
+
+function bindSubmittedSshCommand(runtime: NativeTerminalRuntime, command: string) {
+  const destination = extractSshDestination(command);
+  if (destination) useWorkbenchStore.getState().bindTerminalSsh(runtime.sessionId, destination);
+}
 
 /**
  * 根据当前面板尺寸更新 xterm，并在 PTY 已创建时同步给后端。
@@ -47,7 +100,7 @@ function fitAndResize(runtime: NativeTerminalRuntime) {
 
   runtime.fitAddon.fit();
   if (runtime.terminalId) {
-    void desktopGateway.resizeTerminal(runtime.terminalId, runtime.terminal.rows, runtime.terminal.cols);
+    queuePtyResize(runtime, { rows: runtime.terminal.rows, cols: runtime.terminal.cols });
   }
 }
 
@@ -89,7 +142,10 @@ async function drainTerminalInputs(runtime: NativeTerminalRuntime) {
       try {
         const input = request.submit ? `${request.content}\r` : request.content;
         await desktopGateway.writeTerminal(runtime.terminalId, new TextEncoder().encode(input));
-        if (request.submit) publishTerminalCommandSubmitted();
+        if (request.submit) {
+          publishTerminalCommandSubmitted();
+          bindSubmittedSshCommand(runtime, request.content);
+        }
       } catch (error) {
         runtime.terminal.writeln(`\r\n\x1b[31m[无法注入快捷短语]\x1b[0m ${String(error)}`);
         break;
@@ -149,6 +205,7 @@ async function initializeRuntime(runtime: NativeTerminalRuntime) {
       return;
     }
     runtime.terminalId = terminalId;
+    runtime.lastDimensions = initialDimensions;
     // PTY 建立后立即再次校准，覆盖创建期间发生的网格尺寸变化。
     fitAndResize(runtime);
   } catch (error) {
@@ -158,6 +215,9 @@ async function initializeRuntime(runtime: NativeTerminalRuntime) {
 
   runtime.inputDisposable = terminal.onData((data) => {
     if (!runtime.terminalId) return;
+    const submitted = collectSubmittedCommands(runtime.commandBuffer, data);
+    runtime.commandBuffer = submitted.buffer;
+    submitted.commands.forEach((command) => bindSubmittedSshCommand(runtime, command));
     void desktopGateway.writeTerminal(runtime.terminalId, new TextEncoder().encode(data)).then(() => {
       // 回车和多行粘贴都可能执行命令，统一发布事件以触发 Git 状态刷新。
       if (data.includes("\r") || data.includes("\n")) publishTerminalCommandSubmitted();
@@ -209,6 +269,8 @@ export function attachNativeTerminalRuntime(
       cwd: session.cwd,
       disposed: false,
       drainingInputs: false,
+      resizing: false,
+      commandBuffer: "",
     };
     runtimes.set(session.id, runtime);
   }

@@ -4,25 +4,35 @@ import type { FileDropEvent } from "../../domain/desktop/DesktopGateway";
 interface NativePathDropTarget {
   onHoverChange(hovered: boolean): void;
   onDropPaths(paths: string[]): void;
+  containsPosition?(position: { x: number; y: number }): boolean;
 }
 
-let selectedTarget: { id: symbol; target: NativePathDropTarget } | null = null;
+const targets: Array<{ id: symbol; target: NativePathDropTarget }> = [];
+let hoveredTargetId: symbol | null = null;
 let stopListening: (() => void) | null = null;
 let startListening: Promise<void> | null = null;
 
 function routeNativeDropEvent(event: FileDropEvent) {
-  const target = selectedTarget?.target;
-  if (!target) return;
   if (event.type === "leave") {
-    target.onHoverChange(false);
+    targets.find((item) => item.id === hoveredTargetId)?.target.onHoverChange(false);
+    hoveredTargetId = null;
     return;
+  }
+  // 有命中区域的目标优先；其余区域继续交给当前终端这个默认目标。
+  const located = [...targets].reverse().find((item) => item.target.containsPosition?.(event.position))
+    ?? [...targets].reverse().find((item) => !item.target.containsPosition);
+  if (!located) return;
+  if (hoveredTargetId !== located.id) {
+    targets.find((item) => item.id === hoveredTargetId)?.target.onHoverChange(false);
+    located.target.onHoverChange(true);
+    hoveredTargetId = located.id;
   }
   if (event.type === "drop") {
-    target.onHoverChange(false);
-    if (event.paths.length > 0) target.onDropPaths(event.paths);
+    located.target.onHoverChange(false);
+    hoveredTargetId = null;
+    if (event.paths.length > 0) located.target.onDropPaths(event.paths);
     return;
   }
-  target.onHoverChange(true);
 }
 
 function ensureListening() {
@@ -30,27 +40,28 @@ function ensureListening() {
   startListening = desktopGateway.subscribeToFileDrops(routeNativeDropEvent)
     .then((unlisten) => {
       startListening = null;
-      if (!selectedTarget) unlisten();
+      if (targets.length === 0) unlisten();
       else stopListening = unlisten;
     })
     .catch(() => {
       startListening = null;
-      selectedTarget?.target.onHoverChange(false);
+      targets.forEach((item) => item.target.onHoverChange(false));
     });
 }
 
-/** 原生窗口文件拖放只投递给当前选中终端，避免多面板重复接收。 */
+/** 原生窗口拖放按命中区域路由；没有区域约束时回退给当前选中的终端。 */
 export function registerNativePathDropTarget(target: NativePathDropTarget) {
   const id = Symbol("native-path-drop-target");
-  selectedTarget?.target.onHoverChange(false);
-  selectedTarget = { id, target };
+  targets.push({ id, target });
   ensureListening();
 
   return () => {
-    if (selectedTarget?.id !== id) return;
-    selectedTarget.target.onHoverChange(false);
-    selectedTarget = null;
-    if (stopListening) {
+    const index = targets.findIndex((item) => item.id === id);
+    if (index < 0) return;
+    targets[index].target.onHoverChange(false);
+    targets.splice(index, 1);
+    if (hoveredTargetId === id) hoveredTargetId = null;
+    if (targets.length === 0 && stopListening) {
       stopListening();
       stopListening = null;
     }

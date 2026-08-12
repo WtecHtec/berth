@@ -5,6 +5,7 @@ import { TerminalPanel } from "../terminal/TerminalPanel";
 import { TabBar } from "./TabBar";
 import { FileText, SquareTerminal } from "../../shared/lib/icons";
 import { GitDiffView } from "../git/GitDiffView";
+import { SftpFileViewer } from "../ssh/SftpFileViewer";
 
 export function WorkbenchPaneView({ pane }: { pane: WorkbenchPane }) {
   const sessions = useWorkbenchStore((state) => state.sessions);
@@ -50,6 +51,8 @@ export function WorkbenchPaneView({ pane }: { pane: WorkbenchPane }) {
               />
             ) : tab.kind === "git-diff" ? (
               <GitDiffView tab={tab} active={activePaneId === pane.id && tab.id === activeTab.id} />
+            ) : tab.kind === "sftp-file" ? (
+              <SftpFileViewer tab={tab} active={activePaneId === pane.id && tab.id === activeTab.id} />
             ) : (
               <FileViewer tab={tab} active={activePaneId === pane.id && tab.id === activeTab.id} />
             )}

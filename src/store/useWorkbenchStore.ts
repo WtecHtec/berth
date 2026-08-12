@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { GitDiffTarget } from "../domain/git/models";
+import type { SftpEntry, SshSite } from "../domain/ssh/models";
 import type {
   AiSessionSummary,
   QuickPhrase,
@@ -32,6 +33,9 @@ import {
 } from "../infrastructure/persistence/workbenchLayoutRepository";
 import { buildAiSessionResumeCommand } from "../infrastructure/terminal/aiSessionCommand";
 import { findTreeNode, setTreeNodeChildren, toggleTreeNode } from "../shared/utils/tree";
+import { quoteShellPath } from "../shared/utils/shell";
+
+type SidebarView = "files" | "git" | "ssh";
 
 interface WorkbenchState {
   workspaceRoots: string[];
@@ -47,7 +51,7 @@ interface WorkbenchState {
   activePaneId: string;
   sessionsCollapsed: boolean;
   filesCollapsed: boolean;
-  sidebarView: "files" | "git";
+  sidebarView: SidebarView;
   settingsOpen: boolean;
   commandPaletteOpen: boolean;
   pendingTerminalInputs: Record<string, TerminalInputRequest[]>;
@@ -64,6 +68,9 @@ interface WorkbenchState {
   selectTreePath(path: string): void;
   openTreeNode(id: string): void;
   openFilePath(path: string, name?: string): void;
+  openSftpFile(sessionId: string, entry: SftpEntry): void;
+  updateSftpFileMetadata(tabId: string, size: number, modified: string): void;
+  renameOpenSftpPath(siteId: string, controlPath: string | undefined, previousPath: string, nextPath: string): void;
   openGitDiff(target: GitDiffTarget): void;
   activateTab(paneId: string, tabId: string): void;
   moveTab(tabId: string, sourcePaneId: string, targetPaneId: string): void;
@@ -78,7 +85,7 @@ interface WorkbenchState {
   renameOpenPaths(previousPath: string, nextPath: string): void;
   toggleSessions(): void;
   toggleFiles(): void;
-  toggleSidebarView(view: "files" | "git"): void;
+  toggleSidebarView(view: SidebarView): void;
   setSettingsOpen(open: boolean): void;
   setCommandPaletteOpen(open: boolean): void;
   enqueueTerminalInput(sessionId: string, content: string, submit?: boolean): void;
@@ -89,6 +96,9 @@ interface WorkbenchState {
   replacePhrases(phrases: QuickPhrase[]): void;
   createTerminal(): void;
   createTerminalAt(cwd: string): void;
+  createSshTerminal(site: SshSite): void;
+  bindTerminalSsh(sessionId: string, siteId: string): void;
+  setTerminalRemotePath(sessionId: string, path: string): void;
   openAiSession(session: AiSessionSummary): void;
 }
 
@@ -305,6 +315,64 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
         panes: state.panes.map((item) => item.id === pane.id ? { ...item, tabs, activeTabId: tabId } : item),
       };
     });
+  },
+  openSftpFile(sessionId, entry) {
+    const session = get().sessions.find((item) => item.id === sessionId);
+    if (!session?.ssh || entry.kind === "directory") return;
+    // 会话 ID 进入标签标识，允许同一站点的两个独立连接分别打开同一路径。
+    const tabId = `sftp:${sessionId}:${entry.path}`;
+    set((state) => {
+      const pane = state.panes.find((item) => item.id === state.activePaneId) ?? state.panes[0];
+      const exists = pane.tabs.some((tab) => tab.id === tabId);
+      const tabs = exists ? pane.tabs : [...pane.tabs, {
+        id: tabId,
+        title: entry.name,
+        kind: "sftp-file" as const,
+        sftpFile: {
+          siteId: session.ssh!.siteId,
+          path: entry.path,
+          controlPath: session.ssh!.controlPath,
+          size: entry.size,
+          modified: entry.modified,
+        },
+      }];
+      return {
+        activePaneId: pane.id,
+        panes: state.panes.map((item) => item.id === pane.id
+          ? { ...item, tabs, activeTabId: tabId }
+          : item),
+      };
+    });
+  },
+  updateSftpFileMetadata(tabId, size, modified) {
+    set((state) => ({
+      panes: updateTab(state.panes, tabId, (tab) => tab.sftpFile
+        ? { ...tab, sftpFile: { ...tab.sftpFile, size, modified } }
+        : tab),
+    }));
+  },
+  renameOpenSftpPath(siteId, controlPath, previousPath, nextPath) {
+    set((state) => ({
+      panes: state.panes.map((pane) => {
+        let activeTabId = pane.activeTabId;
+        const tabs = pane.tabs.map((tab) => {
+          if (tab.sftpFile?.siteId !== siteId
+            || tab.sftpFile.controlPath !== controlPath
+            || tab.sftpFile.path !== previousPath) return tab;
+          const id = tab.id.endsWith(previousPath)
+            ? `${tab.id.slice(0, -previousPath.length)}${nextPath}`
+            : tab.id;
+          if (activeTabId === tab.id) activeTabId = id;
+          return {
+            ...tab,
+            id,
+            title: pathName(nextPath),
+            sftpFile: { ...tab.sftpFile, path: nextPath },
+          };
+        });
+        return { ...pane, activeTabId, tabs };
+      }),
+    }));
   },
   openGitDiff(target) {
     const tabId = `git-diff:${target.mode}:${target.path}`;
@@ -569,7 +637,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
     get().createTerminalAt(cwd);
   },
   createTerminalAt(cwd) {
-    const id = `terminal-${Date.now()}`;
+    const id = `terminal-${crypto.randomUUID()}`;
     const terminalNumber = get().sessions.length + 1;
     const session: TerminalSession = {
       id,
@@ -591,6 +659,65 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
         panes: state.panes.map((item) => item.id === pane.id ? { ...item, tabs: [...item.tabs, tab], activeTabId: tab.id } : item),
       };
     });
+  },
+  createSshTerminal(site) {
+    const cwd = get().workspaceRoots[0];
+    if (!cwd) return;
+    const id = `terminal-${crypto.randomUUID()}`;
+    const controlPath = `/tmp/berth-ssh-${id.slice("terminal-".length)}.sock`;
+    const session: TerminalSession = {
+      id,
+      title: site.id,
+      project: site.hostname ?? site.id,
+      cwd,
+      branch: "",
+      status: "running",
+      processLabel: `ssh · ${site.id}`,
+      lastActivity: "正在连接",
+      color: "#55d69c",
+      ssh: { siteId: site.id, remotePath: ".", controlPath },
+    };
+    const connectRequest: TerminalInputRequest = {
+      id: crypto.randomUUID(),
+      // macOS 固定提供系统 OpenSSH，使用绝对路径避免 GUI 应用与 Terminal.app 的 PATH 不一致。
+      content: `/usr/bin/ssh -o ControlMaster=yes -o ControlPath=${quoteShellPath(controlPath)} ${quoteShellPath(site.id)}`,
+      submit: true,
+    };
+    set((state) => {
+      const pane = state.panes.find((item) => item.id === state.activePaneId) ?? state.panes[0];
+      const tab = { id: `tab-${id}`, title: site.id, kind: "terminal" as const, sessionId: id };
+      return {
+        sessions: [session, ...state.sessions],
+        activePaneId: pane.id,
+        pendingTerminalInputs: {
+          ...state.pendingTerminalInputs,
+          [id]: [connectRequest],
+        },
+        panes: state.panes.map((item) => item.id === pane.id
+          ? { ...item, tabs: [...item.tabs, tab], activeTabId: tab.id }
+          : item),
+      };
+    });
+  },
+  bindTerminalSsh(sessionId, siteId) {
+    set((state) => ({
+      sessions: state.sessions.map((session) => session.id === sessionId
+        ? {
+            ...session,
+            processLabel: `ssh · ${siteId}`,
+            ssh: session.ssh?.siteId === siteId
+              ? session.ssh
+              : { siteId, remotePath: "." },
+          }
+        : session),
+    }));
+  },
+  setTerminalRemotePath(sessionId, remotePath) {
+    set((state) => ({
+      sessions: state.sessions.map((session) => session.id === sessionId && session.ssh
+        ? { ...session, ssh: { ...session.ssh, remotePath } }
+        : session),
+    }));
   },
   openAiSession(aiSession) {
     const state = get();

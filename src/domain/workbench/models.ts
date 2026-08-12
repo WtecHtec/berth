@@ -14,6 +14,12 @@ export interface TerminalSession {
   lastActivity: string;
   color: string;
   aiSession?: Pick<AiSessionSummary, "id" | "provider">;
+  ssh?: {
+    siteId: string;
+    remotePath: string;
+    /** Berth 创建的 SSH 主连接套接字；SFTP 通过它复用终端内已经完成的认证。 */
+    controlPath?: string;
+  };
 }
 
 /** 等待写入指定 PTY 的一次可编辑输入请求。 */
@@ -53,7 +59,15 @@ export interface TreeNode {
   meta?: string;
 }
 
-export type TabKind = "terminal" | "file" | "markdown" | "git-diff" | "welcome";
+export type TabKind = "terminal" | "file" | "markdown" | "git-diff" | "sftp-file" | "welcome";
+
+export interface SftpFileReference {
+  siteId: string;
+  path: string;
+  controlPath?: string;
+  size: number;
+  modified: string;
+}
 
 export interface WorkbenchTab {
   id: string;
@@ -61,6 +75,7 @@ export interface WorkbenchTab {
   kind: TabKind;
   sessionId?: string;
   filePath?: string;
+  sftpFile?: SftpFileReference;
   gitDiffTarget?: GitDiffTarget;
   dirty?: boolean;
 }

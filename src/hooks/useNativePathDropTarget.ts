@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { registerNativePathDropTarget } from "../infrastructure/desktop/nativePathDropCoordinator";
 
 /**
- * 只为当前选中终端注册窗口级 Tauri 拖拽事件，
- * 并把原生订阅生命周期隔离在展示组件之外。
+ * 注册窗口级 Tauri 路径拖拽目标；可选命中区域用于在终端与 SFTP 之间精确路由。
  */
 export function useNativePathDropTarget(
   enabled: boolean,
   onDropPaths: (paths: string[]) => void,
+  containsPosition?: (position: { x: number; y: number }) => boolean,
 ) {
   const [isPathOver, setIsPathOver] = useState(false);
 
@@ -19,8 +19,9 @@ export function useNativePathDropTarget(
     return registerNativePathDropTarget({
       onHoverChange: setIsPathOver,
       onDropPaths,
+      containsPosition,
     });
-  }, [enabled, onDropPaths]);
+  }, [containsPosition, enabled, onDropPaths]);
 
   return isPathOver;
 }

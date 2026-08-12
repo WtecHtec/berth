@@ -2,6 +2,7 @@ import {
   useCallback,
   useMemo,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import type {
@@ -19,6 +20,15 @@ interface SplitLayoutNodeProps {
 
 function SplitDivider({ node }: { node: Extract<WorkbenchLayoutNode, { type: "split" }> }) {
   const setSplitRatio = useWorkbenchStore((state) => state.setSplitRatio);
+
+  const adjustWithKeyboard = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    const backward = node.axis === "horizontal" ? event.key === "ArrowLeft" : event.key === "ArrowUp";
+    const forward = node.axis === "horizontal" ? event.key === "ArrowRight" : event.key === "ArrowDown";
+    if (!backward && !forward) return;
+    event.preventDefault();
+    const step = event.shiftKey ? 0.05 : 0.02;
+    setSplitRatio(node.id, node.ratio + (forward ? step : -step));
+  }, [node.axis, node.id, node.ratio, setSplitRatio]);
 
   const startResize = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) return;
@@ -76,7 +86,9 @@ function SplitDivider({ node }: { node: Extract<WorkbenchLayoutNode, { type: "sp
       aria-valuemin={15}
       aria-valuemax={85}
       aria-valuenow={Math.round(node.ratio * 100)}
+      title="拖动调整大小，双击恢复均分"
       onPointerDown={startResize}
+      onKeyDown={adjustWithKeyboard}
       onDoubleClick={() => setSplitRatio(node.id, 0.5)}
     />
   );

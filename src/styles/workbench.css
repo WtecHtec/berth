@@ -4,12 +4,17 @@
 .split-layout--horizontal { grid-template-columns: var(--split-first) 1px var(--split-second); grid-template-rows: minmax(0,1fr); }
 .split-layout--vertical { grid-template-columns: minmax(0,1fr); grid-template-rows: var(--split-first) 1px var(--split-second); }
 .split-divider { z-index: 12; position: relative; padding: 0; border: 0; background: var(--hairline); touch-action: none; }
-.split-divider::after { content: ""; position: absolute; inset: 0; background: transparent; transition: background-color 110ms ease; }
-.split-divider--horizontal { width: 9px; height: 100%; left: -4px; cursor: col-resize; }
-.split-divider--horizontal::after { left: 4px; right: 4px; }
-.split-divider--vertical { width: 100%; height: 9px; top: -4px; cursor: row-resize; }
-.split-divider--vertical::after { top: 4px; bottom: 4px; }
-.split-divider:hover::after, .split-divider:active::after { background: rgba(102,181,255,.8); }
+.split-divider::before, .split-divider::after { content: ""; position: absolute; pointer-events: none; }
+.split-divider::before { border-radius: 3px; background: rgba(102,181,255,.38); opacity: 0; transition: opacity 110ms ease; }
+.split-divider::after { inset: 0; background: transparent; transition: background-color 110ms ease; }
+.split-divider--horizontal { width: 11px; height: 100%; left: -5px; cursor: col-resize; }
+.split-divider--horizontal::before { width: 3px; height: 28px; left: 4px; top: 50%; transform: translateY(-50%); }
+.split-divider--horizontal::after { left: 5px; right: 5px; }
+.split-divider--vertical { width: 100%; height: 11px; top: -5px; cursor: row-resize; }
+.split-divider--vertical::before { width: 28px; height: 3px; left: 50%; top: 4px; transform: translateX(-50%); }
+.split-divider--vertical::after { top: 5px; bottom: 5px; }
+.split-divider:hover::before, .split-divider:active::before { opacity: 1; }
+.split-divider:hover::after, .split-divider:active::after { background: rgba(102,181,255,.86); }
 .split-divider:focus-visible { z-index: 14; outline-offset: -1px; }
 .workbench-pane-slot { min-width: 0; min-height: 0; position: relative; overflow: hidden; background: var(--bg-panel); }
 .workbench-pane-slot.is-active::after { content: ""; position: absolute; z-index: 8; inset: 0; pointer-events: none; border: 1px solid rgba(102,181,255,.18); }

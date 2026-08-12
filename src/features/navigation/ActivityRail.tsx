@@ -1,4 +1,4 @@
-import { Folder, GitBranch, PanelLeftClose, Settings2, Terminal } from "lucide-react";
+import { Folder, GitBranch, PanelLeftClose, Server, Settings2, Terminal } from "lucide-react";
 import { IconButton } from "../../shared/ui/IconButton";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
 
@@ -31,6 +31,13 @@ export function ActivityRail() {
           onClick={() => toggleSidebarView("git")}
         >
           <GitBranch size={18} />
+        </IconButton>
+        <IconButton
+          label="SSH 与 SFTP"
+          className={!filesCollapsed && sidebarView === "ssh" ? "is-active" : ""}
+          onClick={() => toggleSidebarView("ssh")}
+        >
+          <Server size={18} />
         </IconButton>
       </div>
       <div className="activity-rail__bottom">

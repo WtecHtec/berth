@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Default capability for the main Berth window","local":true,"windows":["main","berth-*"],"permissions":["core:default","core:window:allow-start-dragging","dialog:allow-open"]}}
+{"default":{"identifier":"default","description":"Default capability for the main Berth window","local":true,"windows":["main","berth-*"],"permissions":["core:default","core:window:allow-start-dragging","dialog:allow-open","dialog:allow-save"]}}

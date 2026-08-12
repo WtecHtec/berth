@@ -6,6 +6,12 @@ export const browserDesktopGateway: DesktopGateway = {
   async pickFolder() {
     return null;
   },
+  async pickFiles() {
+    return [];
+  },
+  async pickSavePath() {
+    return null;
+  },
   async listDirectory() {
     return [];
   },
@@ -14,6 +20,37 @@ export const browserDesktopGateway: DesktopGateway = {
   },
   async listAiSessions() {
     return { sessions: [], warnings: [] };
+  },
+  async listSshSites() {
+    return [];
+  },
+  async listSftpDirectory() {
+    throw new Error("SFTP 仅在桌面应用中可用");
+  },
+  async readSftpTextFile() {
+    throw new Error("SFTP 文件读取仅在桌面应用中可用");
+  },
+  async writeSftpTextFile() {
+    throw new Error("SFTP 文件保存仅在桌面应用中可用");
+  },
+  async uploadSftpPaths() {
+    throw new Error("SFTP 上传仅在桌面应用中可用");
+  },
+  async downloadSftpFile() {
+    throw new Error("SFTP 下载仅在桌面应用中可用");
+  },
+  async cacheSftpFile() {
+    throw new Error("SFTP 预览仅在桌面应用中可用");
+  },
+  async releaseSftpCache() {},
+  async createSftpEntry() {
+    throw new Error("SFTP 新建仅在桌面应用中可用");
+  },
+  async renameSftpEntry() {
+    throw new Error("SFTP 重命名仅在桌面应用中可用");
+  },
+  async deleteSftpEntry() {
+    throw new Error("SFTP 删除仅在桌面应用中可用");
   },
   async readTextFile() {
     throw new Error("文件读取仅在桌面应用中可用");
