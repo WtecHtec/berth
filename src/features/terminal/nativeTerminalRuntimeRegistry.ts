@@ -16,6 +16,7 @@ interface NativeTerminalRuntime {
   inputDisposable?: IDisposable;
   stopInputQueue?: () => void;
   observer?: ResizeObserver;
+  resizeFrame?: number;
   initializePromise?: Promise<void>;
   disposeTimer?: number;
   disposed: boolean;
@@ -24,26 +25,58 @@ interface NativeTerminalRuntime {
 
 export interface NativeTerminalAttachment {
   focus(): void;
+  fit(): void;
   write(text: string): Promise<void>;
   release(): void;
 }
 
 const runtimes = new Map<string, NativeTerminalRuntime>();
 const RELEASE_GRACE_PERIOD_MS = 800;
+const MIN_RENDERABLE_HOST_SIZE = 32;
+
+/**
+ * 根据当前面板尺寸更新 xterm，并在 PTY 已创建时同步给后端。
+ * 隐藏面板可能暂时为 0 尺寸，此时保留上一次有效行列数，避免误缩成最小终端。
+ */
+function fitAndResize(runtime: NativeTerminalRuntime) {
+  if (!runtime.host || !runtime.terminal || !runtime.fitAddon) return;
+  if (
+    runtime.host.clientWidth < MIN_RENDERABLE_HOST_SIZE
+    || runtime.host.clientHeight < MIN_RENDERABLE_HOST_SIZE
+  ) return;
+
+  runtime.fitAddon.fit();
+  if (runtime.terminalId) {
+    void desktopGateway.resizeTerminal(runtime.terminalId, runtime.terminal.rows, runtime.terminal.cols);
+  }
+}
+
+/** 合并同一帧内的多次布局变更，避免网格重排时重复执行测量与 PTY resize。 */
+function scheduleFit(runtime: NativeTerminalRuntime) {
+  if (runtime.resizeFrame !== undefined) return;
+  runtime.resizeFrame = requestAnimationFrame(() => {
+    runtime.resizeFrame = undefined;
+    fitAndResize(runtime);
+  });
+}
 
 function observeHost(runtime: NativeTerminalRuntime) {
   runtime.observer?.disconnect();
   if (!runtime.host || !runtime.terminal || !runtime.fitAddon) return;
-  const resize = () => {
-    if (!runtime.host || !runtime.terminal || !runtime.fitAddon) return;
-    runtime.fitAddon.fit();
-    if (runtime.terminalId) {
-      void desktopGateway.resizeTerminal(runtime.terminalId, runtime.terminal.rows, runtime.terminal.cols);
-    }
-  };
-  runtime.observer = new ResizeObserver(resize);
+  runtime.observer = new ResizeObserver(() => scheduleFit(runtime));
   runtime.observer.observe(runtime.host);
-  requestAnimationFrame(resize);
+  scheduleFit(runtime);
+}
+
+/** 等待字体和首帧布局稳定后，取得 shell 启动时应使用的真实行列数。 */
+async function resolveInitialDimensions(runtime: NativeTerminalRuntime) {
+  await document.fonts.ready;
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  fitAndResize(runtime);
+  return {
+    rows: Math.max(2, runtime.terminal?.rows ?? 24),
+    cols: Math.max(2, runtime.terminal?.cols ?? 80),
+  };
 }
 
 async function drainTerminalInputs(runtime: NativeTerminalRuntime) {
@@ -100,16 +133,24 @@ async function initializeRuntime(runtime: NativeTerminalRuntime) {
   observeHost(runtime);
 
   try {
-    const terminalId = await desktopGateway.spawnTerminal(runtime.cwd, {
-      onData: (data) => terminal.write(data),
-      onExit: (code) => terminal.writeln(`\r\n[进程已退出${code === null ? "" : ` · ${code}`}]`),
-    });
+    const initialDimensions = await resolveInitialDimensions(runtime);
+    if (runtime.disposed || !runtime.terminal) return;
+    const terminalId = await desktopGateway.spawnTerminal(
+      runtime.cwd,
+      initialDimensions,
+      {
+        onData: (data) => terminal.write(data),
+        onExit: (code) => terminal.writeln(`\r\n[进程已退出${code === null ? "" : ` · ${code}`}]`),
+      },
+    );
     if (runtime.disposed) {
       terminal.dispose();
       await desktopGateway.killTerminal(terminalId);
       return;
     }
     runtime.terminalId = terminalId;
+    // PTY 建立后立即再次校准，覆盖创建期间发生的网格尺寸变化。
+    fitAndResize(runtime);
   } catch (error) {
     if (!runtime.disposed) terminal.writeln(`\r\n\x1b[31m[无法启动终端]\x1b[0m ${String(error)}`);
     return;
@@ -142,6 +183,7 @@ function disposeRuntime(runtime: NativeTerminalRuntime) {
   runtime.disposed = true;
   runtimes.delete(runtime.sessionId);
   runtime.observer?.disconnect();
+  if (runtime.resizeFrame !== undefined) cancelAnimationFrame(runtime.resizeFrame);
   runtime.stopInputQueue?.();
   runtime.inputDisposable?.dispose();
   runtime.terminal?.dispose();
@@ -185,6 +227,9 @@ export function attachNativeTerminalRuntime(
   return {
     focus() {
       attachedRuntime.terminal?.focus();
+    },
+    fit() {
+      scheduleFit(attachedRuntime);
     },
     async write(text) {
       if (attachedRuntime.initializePromise) await attachedRuntime.initializePromise;

@@ -99,14 +99,19 @@ export const tauriDesktopGateway: DesktopGateway = {
       listener(event);
     });
   },
-  async spawnTerminal(cwd: string, callbacks: TerminalCallbacks) {
+  async spawnTerminal(cwd: string, dimensions, callbacks: TerminalCallbacks) {
     const { Channel, invoke } = await tauriCore();
     const channel = new Channel<TerminalEvent>();
     channel.onmessage = (event) => {
       if (event.kind === "data" && event.data) callbacks.onData(new Uint8Array(event.data));
       if (event.kind === "exit") callbacks.onExit(event.code ?? null);
     };
-    return invoke<string>("spawn_terminal", { cwd, channel });
+    return invoke<string>("spawn_terminal", {
+      cwd,
+      rows: dimensions.rows,
+      cols: dimensions.cols,
+      channel,
+    });
   },
   async writeTerminal(terminalId, data) {
     const { invoke } = await tauriCore();

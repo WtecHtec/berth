@@ -51,7 +51,7 @@ export const browserDesktopGateway: DesktopGateway = {
   async subscribeToFileDrops() {
     return () => {};
   },
-  async spawnTerminal(_cwd, callbacks) {
+  async spawnTerminal(_cwd, _dimensions, callbacks) {
     callbacks.onExit(null);
     throw new Error("终端仅在桌面应用中可用");
   },

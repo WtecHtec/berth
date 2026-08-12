@@ -56,7 +56,11 @@ export function TerminalSurface({ session, selected = false }: TerminalSurfacePr
   }, [session?.cwd, session?.id]);
 
   useEffect(() => {
-    if (selected) terminalAttachmentRef.current?.focus();
+    if (selected) {
+      // 从隐藏布局恢复时主动重算尺寸，避免浏览器未派发 ResizeObserver 的边缘情况。
+      terminalAttachmentRef.current?.fit();
+      terminalAttachmentRef.current?.focus();
+    }
   }, [selected]);
 
   if (desktopGateway.kind === "browser") return <BrowserTerminal session={session} />;

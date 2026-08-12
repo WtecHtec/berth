@@ -6,6 +6,11 @@ export interface TerminalCallbacks {
   onExit(code: number | null): void;
 }
 
+export interface TerminalDimensions {
+  rows: number;
+  cols: number;
+}
+
 export type FileDropEvent =
   | { type: "enter" | "over"; position: { x: number; y: number } }
   | { type: "drop"; paths: string[]; position: { x: number; y: number } }
@@ -39,7 +44,7 @@ export interface DesktopGateway {
   createWindow(): Promise<void>;
   openInSystemTerminal(path: string): Promise<void>;
   subscribeToFileDrops(listener: (event: FileDropEvent) => void): Promise<() => void>;
-  spawnTerminal(cwd: string, callbacks: TerminalCallbacks): Promise<string>;
+  spawnTerminal(cwd: string, dimensions: TerminalDimensions, callbacks: TerminalCallbacks): Promise<string>;
   writeTerminal(terminalId: string, data: Uint8Array): Promise<void>;
   resizeTerminal(terminalId: string, rows: number, cols: number): Promise<void>;
   killTerminal(terminalId: string): Promise<void>;

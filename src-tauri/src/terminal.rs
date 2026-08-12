@@ -85,12 +85,27 @@ fn resolve_cwd(path: &str) -> std::path::PathBuf {
 }
 
 /**
+ * 声明 Berth PTY 的终端能力，并隔离宿主应用注入的颜色控制变量。
+ * 用户仍可在自己的 shell 配置中重新设置这些变量，行为与系统终端保持一致。
+ */
+fn apply_terminal_capabilities(command: &mut Command) {
+    for variable in ["NO_COLOR", "FORCE_COLOR", "CLICOLOR", "CLICOLOR_FORCE"] {
+        command.env_remove(variable);
+    }
+    command.env("TERM", "xterm-256color");
+    command.env("COLORTERM", "truecolor");
+    command.env("TERM_PROGRAM", "Berth");
+}
+
+/**
  * 创建原生 POSIX 伪终端。PTY 适配层独占进程细节，前端只通过 terminal_id 交换字节流。
  */
 #[tauri::command]
 pub fn spawn_terminal(
     window: Window,
     cwd: String,
+    rows: u16,
+    cols: u16,
     channel: Channel<TerminalEvent>,
     registry: State<'_, TerminalRegistry>,
 ) -> Result<String, String> {
@@ -109,13 +124,20 @@ pub fn spawn_terminal(
 
     let mut master_fd = -1;
     let mut slave_fd = -1;
+    // shell 启动前就写入真实面板尺寸，避免首屏按默认列数输出后出现错位和杂乱换行。
+    let mut initial_size = libc::winsize {
+        ws_row: rows.max(2),
+        ws_col: cols.max(2),
+        ws_xpixel: 0,
+        ws_ypixel: 0,
+    };
     let open_result = unsafe {
         libc::openpty(
             &mut master_fd,
             &mut slave_fd,
             ptr::null_mut(),
             ptr::null_mut(),
-            ptr::null_mut(),
+            &mut initial_size,
         )
     };
     if open_result != 0 {
@@ -137,8 +159,7 @@ pub fn spawn_terminal(
     // Git 与终端共用受控环境，确保 Finder 启动时也能找到 Homebrew/NVM 工具。
     apply_to_command(&mut command);
     command.env("SHELL", &shell);
-    command.env("TERM", "xterm-256color");
-    command.env("COLORTERM", "truecolor");
+    apply_terminal_capabilities(&mut command);
 
     // SAFETY：pre_exec 位于 fork 与 exec 之间，只调用异步信号安全的 libc 接口，
     // 将 slave fd 绑定为子进程的控制终端和标准输入输出。
@@ -277,4 +298,36 @@ pub fn kill_terminal(
         .map_err(|error| format!("无法结束终端进程：{error}"))?;
     let _ = terminal.child.wait();
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn configured_value(command: &Command, target: &str) -> Option<Option<String>> {
+        command
+            .get_envs()
+            .find(|(name, _)| name.to_string_lossy() == target)
+            .map(|(_, value)| value.map(|item| item.to_string_lossy().into_owned()))
+    }
+
+    #[test]
+    fn terminal_capabilities_remove_host_color_overrides() {
+        let mut command = Command::new("/bin/zsh");
+        command.env("NO_COLOR", "1");
+        command.env("FORCE_COLOR", "0");
+
+        apply_terminal_capabilities(&mut command);
+
+        assert_eq!(configured_value(&command, "NO_COLOR"), Some(None));
+        assert_eq!(configured_value(&command, "FORCE_COLOR"), Some(None));
+        assert_eq!(
+            configured_value(&command, "TERM"),
+            Some(Some("xterm-256color".to_string()))
+        );
+        assert_eq!(
+            configured_value(&command, "COLORTERM"),
+            Some(Some("truecolor".to_string()))
+        );
+    }
 }
