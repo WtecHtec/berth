@@ -63,6 +63,66 @@ fn validate_name(name: &str) -> Result<&str, String> {
     Ok(trimmed)
 }
 
+fn split_copy_name(name: &str, is_directory: bool) -> (&str, &str) {
+    if is_directory {
+        return (name, "");
+    }
+    match name.rsplit_once('.') {
+        Some((stem, extension)) if !stem.is_empty() && !extension.is_empty() => {
+            (stem, &name[stem.len()..])
+        }
+        _ => (name, ""),
+    }
+}
+
+/** 与 Finder 类似，在目标目录已存在同名项目时生成“副本”“副本 2”名称。 */
+fn available_copy_path(directory: &Path, name: &str, is_directory: bool) -> PathBuf {
+    let original = directory.join(name);
+    if !original.exists() {
+        return original;
+    }
+    let (stem, extension) = split_copy_name(name, is_directory);
+    for index in 1..=10_000 {
+        let suffix = if index == 1 {
+            " 副本".to_string()
+        } else {
+            format!(" 副本 {index}")
+        };
+        let candidate = directory.join(format!("{stem}{suffix}{extension}"));
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    directory.join(format!("{stem} 副本 {}{extension}", uuid::Uuid::new_v4()))
+}
+
+fn copy_directory_recursive(source: &Path, destination: &Path) -> Result<(), String> {
+    fs::create_dir(destination).map_err(|error| format!("无法创建目标文件夹：{error}"))?;
+    for entry in fs::read_dir(source).map_err(|error| format!("无法读取源文件夹：{error}"))?
+    {
+        let entry = entry.map_err(|error| format!("无法读取文件夹项目：{error}"))?;
+        let source_path = entry.path();
+        let destination_path = destination.join(entry.file_name());
+        let metadata = fs::symlink_metadata(&source_path)
+            .map_err(|error| format!("无法读取文件信息：{error}"))?;
+        if metadata.file_type().is_symlink() {
+            #[cfg(unix)]
+            std::os::unix::fs::symlink(
+                fs::read_link(&source_path)
+                    .map_err(|error| format!("无法读取符号链接：{error}"))?,
+                &destination_path,
+            )
+            .map_err(|error| format!("无法复制符号链接：{error}"))?;
+        } else if metadata.is_dir() {
+            copy_directory_recursive(&source_path, &destination_path)?;
+        } else {
+            fs::copy(&source_path, &destination_path)
+                .map_err(|error| format!("无法复制文件：{error}"))?;
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn list_directory(path: String) -> Result<Vec<FileEntryDto>, String> {
     let root = normalize_path(&path)?;
@@ -249,6 +309,50 @@ pub fn create_file(directory: String, name: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+pub async fn copy_path(
+    source_path: String,
+    destination_directory: String,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let source = normalize_path(&source_path)?;
+        let canonical_source = source
+            .canonicalize()
+            .map_err(|error| format!("无法读取复制来源：{error}"))?;
+        let destination_directory = normalize_path(&destination_directory)?
+            .canonicalize()
+            .map_err(|error| format!("无法读取粘贴位置：{error}"))?;
+        if !destination_directory.is_dir() {
+            return Err("粘贴位置不是文件夹".to_string());
+        }
+        let metadata =
+            fs::symlink_metadata(&source).map_err(|error| format!("无法读取复制来源：{error}"))?;
+        if metadata.is_dir() && destination_directory.starts_with(&canonical_source) {
+            return Err("不能将文件夹粘贴到它自身或子目录中".to_string());
+        }
+        let name = source
+            .file_name()
+            .and_then(|value| value.to_str())
+            .ok_or("无法确定复制项目名称")?;
+        let destination = available_copy_path(&destination_directory, name, metadata.is_dir());
+        if metadata.is_dir() {
+            copy_directory_recursive(&source, &destination)?;
+        } else if metadata.file_type().is_symlink() {
+            #[cfg(unix)]
+            std::os::unix::fs::symlink(
+                fs::read_link(&source).map_err(|error| format!("无法读取符号链接：{error}"))?,
+                &destination,
+            )
+            .map_err(|error| format!("无法复制符号链接：{error}"))?;
+        } else {
+            fs::copy(&source, &destination).map_err(|error| format!("无法复制文件：{error}"))?;
+        }
+        Ok(destination.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|error| format!("文件复制任务失败：{error}"))?
+}
+
+#[tauri::command]
 pub fn rename_path(path: String, new_name: String) -> Result<String, String> {
     let source = normalize_path(&path)?;
     let parent = source.parent().ok_or("无法重命名根目录")?;
@@ -262,7 +366,16 @@ pub fn rename_path(path: String, new_name: String) -> Result<String, String> {
 
 #[tauri::command]
 pub fn move_to_trash(path: String) -> Result<(), String> {
-    trash::delete(normalize_path(&path)?).map_err(|error| format!("无法移入废纸篓：{error}"))
+    let target = normalize_path(&path)?;
+    if !target.is_absolute() || target.parent().is_none() {
+        return Err("不能将系统根路径移到废纸篓".to_string());
+    }
+    if std::env::var_os("HOME").is_some_and(|home| Path::new(&home) == target) {
+        return Err("不能将用户主目录移到废纸篓".to_string());
+    }
+    // 使用 symlink_metadata 验证条目本身，避免符号链接被解析后误删链接目标。
+    fs::symlink_metadata(&target).map_err(|error| format!("无法读取待移动项目：{error}"))?;
+    trash::delete(target).map_err(|error| format!("无法移入废纸篓：{error}"))
 }
 
 #[tauri::command]
@@ -297,6 +410,49 @@ mod tests {
     fn rejects_files_above_the_editable_memory_limit() {
         assert!(ensure_editable_file_size(MAX_EDITABLE_FILE_BYTES).is_ok());
         assert!(ensure_editable_file_size(MAX_EDITABLE_FILE_BYTES + 1).is_err());
+    }
+
+    #[test]
+    fn rejects_unsafe_trash_targets_without_touching_disk() {
+        assert!(move_to_trash("relative/path".to_string()).is_err());
+        assert!(move_to_trash("/".to_string()).is_err());
+    }
+
+    #[test]
+    fn generates_finder_style_copy_names_without_losing_extensions() {
+        let root = TemporarySearchRoot(
+            std::env::temp_dir().join(format!("berth-copy-name-{}", uuid::Uuid::new_v4())),
+        );
+        fs::create_dir(&root.0).expect("create copy root");
+        fs::write(root.0.join("notes.md"), "first").expect("write original");
+        assert_eq!(
+            available_copy_path(&root.0, "notes.md", false)
+                .file_name()
+                .and_then(|value| value.to_str()),
+            Some("notes 副本.md")
+        );
+        fs::write(root.0.join("notes 副本.md"), "second").expect("write first copy");
+        assert_eq!(
+            available_copy_path(&root.0, "notes.md", false)
+                .file_name()
+                .and_then(|value| value.to_str()),
+            Some("notes 副本 2.md")
+        );
+    }
+
+    #[test]
+    fn recursively_copies_a_directory_tree() {
+        let root = TemporarySearchRoot(
+            std::env::temp_dir().join(format!("berth-copy-tree-{}", uuid::Uuid::new_v4())),
+        );
+        fs::create_dir_all(root.0.join("source/nested")).expect("create source tree");
+        fs::write(root.0.join("source/nested/file.txt"), "copied").expect("write source");
+        copy_directory_recursive(&root.0.join("source"), &root.0.join("destination"))
+            .expect("copy directory tree");
+        assert_eq!(
+            fs::read_to_string(root.0.join("destination/nested/file.txt")).unwrap(),
+            "copied"
+        );
     }
 
     struct TemporarySearchRoot(PathBuf);

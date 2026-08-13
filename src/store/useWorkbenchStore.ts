@@ -83,6 +83,7 @@ interface WorkbenchState {
   restoreWorkspaceLayout(roots: string[]): void;
   setTabDirty(tabId: string, dirty: boolean): void;
   renameOpenPaths(previousPath: string, nextPath: string): void;
+  closeOpenPaths(path: string): void;
   toggleSessions(): void;
   toggleFiles(): void;
   toggleSidebarView(view: SidebarView): void;
@@ -564,6 +565,26 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
           };
         });
         return { ...pane, tabs, activeTabId };
+      }),
+    }));
+  },
+  closeOpenPaths(path) {
+    const pathPrefix = `${path}/`;
+    set((state) => ({
+      panes: state.panes.map((pane) => {
+        const removedIds = new Set(pane.tabs
+          .filter((tab) => tab.filePath === path || tab.filePath?.startsWith(pathPrefix))
+          .map((tab) => tab.id));
+        if (removedIds.size === 0) return pane;
+        const previousIndex = pane.tabs.findIndex((tab) => tab.id === pane.activeTabId);
+        const tabs = pane.tabs.filter((tab) => !removedIds.has(tab.id));
+        return {
+          ...pane,
+          tabs,
+          activeTabId: removedIds.has(pane.activeTabId)
+            ? (tabs[Math.max(0, previousIndex - 1)]?.id ?? tabs[0]?.id ?? "")
+            : pane.activeTabId,
+        };
       }),
     }));
   },

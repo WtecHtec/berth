@@ -1,4 +1,5 @@
 use crate::command_environment::configured_command;
+use crate::commands::clipboard::{write_file_paths, ClipboardCacheRegistry};
 use serde::Serialize;
 use std::{
     collections::HashSet,
@@ -48,6 +49,42 @@ pub struct SftpTextFile {
 struct TemporaryFile {
     path: PathBuf,
     remove_on_drop: bool,
+}
+
+struct TemporaryDirectory {
+    path: PathBuf,
+    remove_on_drop: bool,
+}
+
+impl TemporaryDirectory {
+    fn create(prefix: &str) -> Result<Self, String> {
+        let path =
+            std::env::temp_dir().join(format!("berth-sftp-{prefix}-{}", uuid::Uuid::new_v4()));
+        fs::create_dir(&path).map_err(|error| format!("无法创建 SFTP 临时目录：{error}"))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o700))
+                .map_err(|error| format!("无法保护 SFTP 临时目录：{error}"))?;
+        }
+        Ok(Self {
+            path,
+            remove_on_drop: true,
+        })
+    }
+
+    fn persist(mut self) -> PathBuf {
+        self.remove_on_drop = false;
+        self.path.clone()
+    }
+}
+
+impl Drop for TemporaryDirectory {
+    fn drop(&mut self) {
+        if self.remove_on_drop {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
 }
 
 impl TemporaryFile {
@@ -243,6 +280,58 @@ fn remote_name(path: &str) -> &str {
         .rsplit('/')
         .next()
         .unwrap_or(path)
+}
+
+fn split_copy_name(name: &str, is_directory: bool) -> (&str, &str) {
+    if is_directory {
+        return (name, "");
+    }
+    match name.rsplit_once('.') {
+        Some((stem, extension)) if !stem.is_empty() && !extension.is_empty() => {
+            (stem, &name[stem.len()..])
+        }
+        _ => (name, ""),
+    }
+}
+
+fn available_remote_copy_name(entries: &[SftpEntry], name: &str, is_directory: bool) -> String {
+    let exists = |candidate: &str| entries.iter().any(|entry| entry.name == candidate);
+    if !exists(name) {
+        return name.to_string();
+    }
+    let (stem, extension) = split_copy_name(name, is_directory);
+    for index in 1..=10_000 {
+        let suffix = if index == 1 {
+            " 副本".to_string()
+        } else {
+            format!(" 副本 {index}")
+        };
+        let candidate = format!("{stem}{suffix}{extension}");
+        if !exists(&candidate) {
+            return candidate;
+        }
+    }
+    format!("{stem} 副本 {}{extension}", uuid::Uuid::new_v4())
+}
+
+fn available_local_copy_path(directory: &Path, name: &str, is_directory: bool) -> PathBuf {
+    let original = directory.join(name);
+    if !original.exists() {
+        return original;
+    }
+    let (stem, extension) = split_copy_name(name, is_directory);
+    for index in 1..=10_000 {
+        let suffix = if index == 1 {
+            " 副本".to_string()
+        } else {
+            format!(" 副本 {index}")
+        };
+        let candidate = directory.join(format!("{stem}{suffix}{extension}"));
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    directory.join(format!("{stem} 副本 {}{extension}", uuid::Uuid::new_v4()))
 }
 
 fn parse_sftp_listing(output: &str, requested_path: &str) -> SftpDirectory {
@@ -496,6 +585,37 @@ pub fn upload_sftp_paths(
     fetch_directory(&site_id, &directory, control_path.as_deref())
 }
 
+/** 应用内粘贴会先解析目标目录中的重名项目，避免直接覆盖远端文件。 */
+#[tauri::command]
+pub fn paste_local_path_to_sftp(
+    site_id: String,
+    directory: String,
+    local_path: String,
+    control_path: Option<String>,
+) -> Result<SftpDirectory, String> {
+    let local_path = PathBuf::from(local_path);
+    if !local_path.exists() {
+        return Err("复制来源已经不存在".to_string());
+    }
+    let is_directory = local_path.is_dir();
+    let source_name = local_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or("无法确定复制项目名称")?;
+    let destination = fetch_directory(&site_id, &directory, control_path.as_deref())?;
+    let destination_name =
+        available_remote_copy_name(&destination.entries, source_name, is_directory);
+    let destination_path = join_remote_path(&destination.path, &destination_name);
+    let command = if is_directory { "put -R" } else { "put" };
+    let batch = format!(
+        "{command} {} {}\n",
+        quote_sftp_path(&local_path.to_string_lossy())?,
+        quote_sftp_path(&destination_path)?
+    );
+    run_sftp_batch(&site_id, control_path.as_deref(), &batch)?;
+    fetch_directory(&site_id, &destination.path, control_path.as_deref())
+}
+
 #[tauri::command]
 pub fn download_sftp_file(
     site_id: String,
@@ -509,6 +629,134 @@ pub fn download_sftp_file(
         quote_sftp_path(&local_path)?
     );
     run_sftp_batch(&site_id, control_path.as_deref(), &batch).map(|_| ())
+}
+
+#[tauri::command]
+pub fn download_sftp_entry(
+    site_id: String,
+    remote_path: String,
+    kind: String,
+    destination_directory: String,
+    control_path: Option<String>,
+) -> Result<String, String> {
+    let destination_directory = PathBuf::from(destination_directory)
+        .canonicalize()
+        .map_err(|error| format!("无法读取粘贴位置：{error}"))?;
+    if !destination_directory.is_dir() {
+        return Err("粘贴位置不是文件夹".to_string());
+    }
+    let is_directory = kind == "directory";
+    if !is_directory && kind != "file" && kind != "symlink" {
+        return Err("不支持的远端条目类型".to_string());
+    }
+    let destination = available_local_copy_path(
+        &destination_directory,
+        remote_name(&remote_path),
+        is_directory,
+    );
+    let command = if is_directory { "get -R" } else { "get" };
+    let batch = format!(
+        "{command} {} {}\n",
+        quote_sftp_path(&remote_path)?,
+        quote_sftp_path(&destination.to_string_lossy())?
+    );
+    run_sftp_batch(&site_id, control_path.as_deref(), &batch)?;
+    Ok(destination.to_string_lossy().into_owned())
+}
+
+/** 远端复制先进入受控临时目录，再上传到目标连接，因而也支持跨 SSH 会话粘贴。 */
+#[tauri::command]
+pub fn copy_sftp_entry(
+    source_site_id: String,
+    source_path: String,
+    source_kind: String,
+    source_control_path: Option<String>,
+    destination_site_id: String,
+    destination_directory: String,
+    destination_control_path: Option<String>,
+) -> Result<SftpDirectory, String> {
+    let is_directory = source_kind == "directory";
+    if !is_directory && source_kind != "file" && source_kind != "symlink" {
+        return Err("不支持的远端条目类型".to_string());
+    }
+    let destination = fetch_directory(
+        &destination_site_id,
+        &destination_directory,
+        destination_control_path.as_deref(),
+    )?;
+    let source_name = remote_name(&source_path);
+    let destination_name =
+        available_remote_copy_name(&destination.entries, source_name, is_directory);
+    let temporary = TemporaryDirectory::create("copy")?;
+    let get_command = if is_directory { "get -R" } else { "get" };
+    let download_batch = format!(
+        "lcd {}\n{get_command} {}\n",
+        quote_sftp_path(&temporary.path.to_string_lossy())?,
+        quote_sftp_path(&source_path)?
+    );
+    run_sftp_batch(
+        &source_site_id,
+        source_control_path.as_deref(),
+        &download_batch,
+    )?;
+    let downloaded_path = temporary.path.join(source_name);
+    if !downloaded_path.exists() {
+        return Err("SFTP 已完成下载，但未找到本地临时副本".to_string());
+    }
+    let upload_path = if destination_name == source_name {
+        downloaded_path
+    } else {
+        let renamed = temporary.path.join(&destination_name);
+        fs::rename(&downloaded_path, &renamed)
+            .map_err(|error| format!("无法准备远端副本：{error}"))?;
+        renamed
+    };
+    let put_command = if is_directory { "put -R" } else { "put" };
+    let upload_batch = format!(
+        "cd {}\n{put_command} {}\n",
+        quote_sftp_path(&destination.path)?,
+        quote_sftp_path(&upload_path.to_string_lossy())?
+    );
+    run_sftp_batch(
+        &destination_site_id,
+        destination_control_path.as_deref(),
+        &upload_batch,
+    )?;
+    fetch_directory(
+        &destination_site_id,
+        &destination.path,
+        destination_control_path.as_deref(),
+    )
+}
+
+/** 将远端项目缓存成真实文件 URL，使 Finder 可以直接从 Berth 粘贴。 */
+#[tauri::command]
+pub fn copy_sftp_entry_to_system_clipboard(
+    site_id: String,
+    remote_path: String,
+    kind: String,
+    control_path: Option<String>,
+    registry: tauri::State<'_, ClipboardCacheRegistry>,
+) -> Result<i64, String> {
+    let is_directory = kind == "directory";
+    if !is_directory && kind != "file" && kind != "symlink" {
+        return Err("不支持的远端条目类型".to_string());
+    }
+    let temporary = TemporaryDirectory::create("clipboard")?;
+    let local_path = temporary.path.join(remote_name(&remote_path));
+    let command = if is_directory { "get -R" } else { "get" };
+    let batch = format!(
+        "{command} {} {}\n",
+        quote_sftp_path(&remote_path)?,
+        quote_sftp_path(&local_path.to_string_lossy())?
+    );
+    run_sftp_batch(&site_id, control_path.as_deref(), &batch)?;
+    if !local_path.exists() {
+        return Err("SFTP 已完成下载，但未找到系统剪贴板缓存".to_string());
+    }
+    let change_count = write_file_paths(std::slice::from_ref(&local_path))?;
+    registry.replace(vec![temporary.persist()], Some(change_count));
+    Ok(change_count)
 }
 
 /** 媒体预览缓存只存在系统临时目录，并由前端标签生命周期主动回收。 */
@@ -662,5 +910,33 @@ mod tests {
             "\"/srv/a \\\"b\\\"\""
         );
         assert!(quote_sftp_path("bad\ncommand").is_err());
+    }
+
+    #[test]
+    fn generates_available_remote_copy_names() {
+        let entries = vec![
+            SftpEntry {
+                name: "notes.md".to_string(),
+                path: "/notes.md".to_string(),
+                kind: "file".to_string(),
+                size: 1,
+                modified: String::new(),
+            },
+            SftpEntry {
+                name: "notes 副本.md".to_string(),
+                path: "/notes 副本.md".to_string(),
+                kind: "file".to_string(),
+                size: 1,
+                modified: String::new(),
+            },
+        ];
+        assert_eq!(
+            available_remote_copy_name(&entries, "notes.md", false),
+            "notes 副本 2.md"
+        );
+        assert_eq!(
+            available_remote_copy_name(&entries, "folder", true),
+            "folder"
+        );
     }
 }

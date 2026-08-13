@@ -12,6 +12,15 @@ export const browserDesktopGateway: DesktopGateway = {
   async pickSavePath() {
     return null;
   },
+  async readSystemFileClipboard() {
+    throw new Error("系统文件剪贴板仅在桌面应用中可用");
+  },
+  async copyLocalPathToSystemClipboard() {
+    throw new Error("系统文件剪贴板仅在桌面应用中可用");
+  },
+  async copySftpEntryToSystemClipboard() {
+    throw new Error("系统文件剪贴板仅在桌面应用中可用");
+  },
   async listDirectory() {
     return [];
   },
@@ -36,8 +45,17 @@ export const browserDesktopGateway: DesktopGateway = {
   async uploadSftpPaths() {
     throw new Error("SFTP 上传仅在桌面应用中可用");
   },
+  async pasteLocalPathToSftp() {
+    throw new Error("SFTP 粘贴仅在桌面应用中可用");
+  },
   async downloadSftpFile() {
     throw new Error("SFTP 下载仅在桌面应用中可用");
+  },
+  async downloadSftpEntry() {
+    throw new Error("SFTP 下载仅在桌面应用中可用");
+  },
+  async copySftpEntry() {
+    throw new Error("SFTP 复制仅在桌面应用中可用");
   },
   async cacheSftpFile() {
     throw new Error("SFTP 预览仅在桌面应用中可用");
@@ -73,8 +91,14 @@ export const browserDesktopGateway: DesktopGateway = {
   async createFile() {
     throw new Error("新建文件仅在桌面应用中可用");
   },
+  async copyPath() {
+    throw new Error("文件复制仅在桌面应用中可用");
+  },
   async renamePath() {
     throw new Error("重命名仅在桌面应用中可用");
+  },
+  async moveToTrash() {
+    throw new Error("移到废纸篓仅在桌面应用中可用");
   },
   async revealInFinder() {},
   async createWindow() {

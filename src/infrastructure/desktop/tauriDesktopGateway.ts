@@ -1,6 +1,7 @@
 import type { DesktopGateway, FileDropEvent, TerminalCallbacks } from "../../domain/desktop/DesktopGateway";
 import type { AiSessionListResponse, TreeNode } from "../../domain/workbench/models";
 import type { SftpDirectory, SftpTextFile, SshSite } from "../../domain/ssh/models";
+import type { SystemFileClipboardSnapshot } from "../../domain/files/fileClipboard";
 
 interface TerminalEvent {
   kind: "data" | "exit";
@@ -32,6 +33,18 @@ export const tauriDesktopGateway: DesktopGateway = {
   async pickSavePath(defaultName) {
     const { save } = await import("@tauri-apps/plugin-dialog");
     return save({ defaultPath: defaultName, title: "保存远端文件" });
+  },
+  async readSystemFileClipboard() {
+    const { invoke } = await tauriCore();
+    return invoke<SystemFileClipboardSnapshot>("read_system_file_clipboard");
+  },
+  async copyLocalPathToSystemClipboard(path) {
+    const { invoke } = await tauriCore();
+    return invoke<number>("copy_local_path_to_system_clipboard", { path });
+  },
+  async copySftpEntryToSystemClipboard(siteId, remotePath, kind, controlPath) {
+    const { invoke } = await tauriCore();
+    return invoke<number>("copy_sftp_entry_to_system_clipboard", { siteId, remotePath, kind, controlPath });
   },
   async listDirectory(path): Promise<TreeNode[]> {
     const { invoke } = await tauriCore();
@@ -72,9 +85,29 @@ export const tauriDesktopGateway: DesktopGateway = {
     const { invoke } = await tauriCore();
     return invoke<SftpDirectory>("upload_sftp_paths", { siteId, directory, localPaths, controlPath });
   },
+  async pasteLocalPathToSftp(siteId, directory, localPath, controlPath) {
+    const { invoke } = await tauriCore();
+    return invoke<SftpDirectory>("paste_local_path_to_sftp", { siteId, directory, localPath, controlPath });
+  },
   async downloadSftpFile(siteId, remotePath, localPath, controlPath) {
     const { invoke } = await tauriCore();
     await invoke("download_sftp_file", { siteId, remotePath, localPath, controlPath });
+  },
+  async downloadSftpEntry(siteId, remotePath, kind, destinationDirectory, controlPath) {
+    const { invoke } = await tauriCore();
+    return invoke<string>("download_sftp_entry", { siteId, remotePath, kind, destinationDirectory, controlPath });
+  },
+  async copySftpEntry(sourceSiteId, sourcePath, sourceKind, sourceControlPath, destinationSiteId, destinationDirectory, destinationControlPath) {
+    const { invoke } = await tauriCore();
+    return invoke<SftpDirectory>("copy_sftp_entry", {
+      sourceSiteId,
+      sourcePath,
+      sourceKind,
+      sourceControlPath,
+      destinationSiteId,
+      destinationDirectory,
+      destinationControlPath,
+    });
   },
   async cacheSftpFile(siteId, remotePath, controlPath) {
     const { invoke } = await tauriCore();
@@ -125,9 +158,17 @@ export const tauriDesktopGateway: DesktopGateway = {
     const { invoke } = await tauriCore();
     return invoke<string>("create_file", { directory, name });
   },
+  async copyPath(sourcePath, destinationDirectory) {
+    const { invoke } = await tauriCore();
+    return invoke<string>("copy_path", { sourcePath, destinationDirectory });
+  },
   async renamePath(path, newName) {
     const { invoke } = await tauriCore();
     return invoke<string>("rename_path", { path, newName });
+  },
+  async moveToTrash(path) {
+    const { invoke } = await tauriCore();
+    await invoke("move_to_trash", { path });
   },
   async revealInFinder(path) {
     const { invoke } = await tauriCore();

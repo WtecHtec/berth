@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
+  ClipboardPaste,
   File,
   FilePlus2,
   Folder,
@@ -26,6 +27,8 @@ import { IconButton } from "../../shared/ui/IconButton";
 import { useWorkbenchStore } from "../../store/useWorkbenchStore";
 import { SftpEntryContextMenu } from "./SftpEntryContextMenu";
 import { SftpNameDialog } from "./SftpNameDialog";
+import { useFileClipboardStore } from "../../store/useFileClipboardStore";
+import { copySftpFileItem, resolveFileClipboardItem } from "../../hooks/useFileClipboard";
 
 interface SshExplorerProps {
   collapsed: boolean;
@@ -67,6 +70,7 @@ export function SshExplorer({ collapsed }: SshExplorerProps) {
   const setTerminalRemotePath = useWorkbenchStore((state) => state.setTerminalRemotePath);
   const openSftpFile = useWorkbenchStore((state) => state.openSftpFile);
   const renameOpenSftpPath = useWorkbenchStore((state) => state.renameOpenSftpPath);
+  const clipboardItem = useFileClipboardStore((state) => state.item);
   const [sites, setSites] = useState<SshSite[]>([]);
   const [recents, setRecents] = useState<SshRecentConnection[]>(loadSshRecentConnections);
   const [directory, setDirectory] = useState<SftpDirectory | null>(null);
@@ -79,6 +83,7 @@ export function SshExplorer({ collapsed }: SshExplorerProps) {
   const [contextMenu, setContextMenu] = useState<{ entry: SftpEntry; x: number; y: number } | null>(null);
   const [nameDialog, setNameDialog] = useState<NameDialogState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SftpEntry | null>(null);
+  const [completionLabel, setCompletionLabel] = useState<string | null>(null);
   const directoryRequestRef = useRef(0);
   const sftpBrowserRef = useRef<HTMLElement>(null);
 
@@ -192,6 +197,87 @@ export function SshExplorer({ collapsed }: SshExplorerProps) {
     if (entry.kind === "directory") setTerminalRemotePath(activeSession.id, entry.path);
     else openSftpFile(activeSession.id, entry);
   }, [activeSession, openSftpFile, setTerminalRemotePath]);
+
+  const copyEntry = useCallback(async (entry: SftpEntry) => {
+    if (!activeSession?.ssh || transferLabel) return;
+    setContextMenu(null);
+    setCompletionLabel(null);
+    setError(null);
+    setTransferLabel(`正在准备复制 ${entry.name}…`);
+    try {
+      // 远端项目先进入受控本地缓存，因此既能在 Berth 内粘贴，也能直接粘贴到 Finder。
+      await copySftpFileItem({
+        source: "sftp",
+        name: entry.name,
+        path: entry.path,
+        kind: entry.kind,
+        siteId: activeSession.ssh.siteId,
+        controlPath: activeSession.ssh.controlPath,
+      });
+      setCompletionLabel(`已复制 ${entry.name}，可粘贴到 Finder`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setTransferLabel(null);
+    }
+  }, [activeSession, transferLabel]);
+
+  const pasteClipboard = useCallback(async (destinationEntry?: SftpEntry) => {
+    if (!activeSession?.ssh || !directory || transferLabel) return;
+    const destination = destinationEntry?.kind === "directory" ? destinationEntry.path : directory.path;
+    setContextMenu(null);
+    setCompletionLabel(null);
+    setTransferLabel("正在读取系统剪贴板…");
+    setError(null);
+    try {
+      const item = await resolveFileClipboardItem();
+      if (!item) {
+        setError("系统剪贴板中没有可粘贴的文件或文件夹");
+        return;
+      }
+      setTransferLabel(`正在粘贴 ${item.name}…`);
+      const next = item.source === "local"
+        ? await desktopGateway.pasteLocalPathToSftp(
+            activeSession.ssh.siteId,
+            destination,
+            item.path,
+            activeSession.ssh.controlPath,
+          )
+        : await desktopGateway.copySftpEntry(
+            item.siteId,
+            item.path,
+            item.kind,
+            item.controlPath,
+            activeSession.ssh.siteId,
+            destination,
+            activeSession.ssh.controlPath,
+          );
+      if (destination === directory.path) setDirectory(next);
+      setCompletionLabel(`已粘贴到 ${destination}`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setTransferLabel(null);
+    }
+  }, [activeSession, directory, transferLabel]);
+
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+      const activeElement = document.activeElement;
+      if (!activeElement || !sftpBrowserRef.current?.contains(activeElement)) return;
+      const selected = directory?.entries.find((entry) => entry.path === selectedPath);
+      if (event.key.toLowerCase() === "c" && selected) {
+        event.preventDefault();
+        void copyEntry(selected);
+      } else if (event.key.toLowerCase() === "v") {
+        event.preventDefault();
+        void pasteClipboard(selected);
+      }
+    };
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  }, [copyEntry, directory?.entries, pasteClipboard, selectedPath]);
 
   const downloadEntry = useCallback(async (entry: SftpEntry) => {
     if (!activeSession?.ssh || entry.kind === "directory") return;
@@ -346,7 +432,14 @@ export function SshExplorer({ collapsed }: SshExplorerProps) {
                 <IconButton label="上传文件" disabled={!directory || Boolean(transferLabel)} onClick={() => void desktopGateway.pickFiles().then(uploadPaths)}><Upload size={13} /></IconButton>
                 <IconButton label="新建远端文件" disabled={!directory || Boolean(transferLabel)} onClick={() => setNameDialog({ mode: "file" })}><FilePlus2 size={13} /></IconButton>
                 <IconButton label="新建远端文件夹" disabled={!directory || Boolean(transferLabel)} onClick={() => setNameDialog({ mode: "directory" })}><FolderPlus size={13} /></IconButton>
-                <span>也可从访达拖入</span>
+                <IconButton
+                  label={clipboardItem ? `粘贴 ${clipboardItem.name}` : "从系统剪贴板粘贴"}
+                  disabled={!directory || Boolean(transferLabel)}
+                  onClick={() => void pasteClipboard(directory?.entries.find((entry) => entry.path === selectedPath))}
+                ><ClipboardPaste size={13} /></IconButton>
+                <span title={completionLabel ?? (clipboardItem ? `已复制 ${clipboardItem.name}` : "也可从访达拖入")}>
+                  {completionLabel ?? (clipboardItem ? `已复制 ${clipboardItem.name}` : "也可从访达拖入")}
+                </span>
               </div>
               {transferLabel ? <div className="sftp-transfer" role="status"><span>{transferLabel}</span><i /></div> : null}
               <div className="sftp-entries">
@@ -354,11 +447,13 @@ export function SshExplorer({ collapsed }: SshExplorerProps) {
                   <button
                     type="button"
                     key={entry.path}
-                    className={`sftp-entry ${selectedPath === entry.path ? "is-selected" : ""}`}
+                    className={`sftp-entry ${selectedPath === entry.path ? "is-selected" : ""} ${clipboardItem?.source === "sftp" && clipboardItem.path === entry.path && clipboardItem.siteId === activeSession.ssh!.siteId && clipboardItem.controlPath === activeSession.ssh!.controlPath ? "is-copied" : ""}`}
+                    onMouseDown={(event) => event.currentTarget.focus({ preventScroll: true })}
                     onClick={() => setSelectedPath(entry.path)}
                     onDoubleClick={() => openEntry(entry)}
                     onContextMenu={(event) => {
                       event.preventDefault();
+                      event.currentTarget.focus({ preventScroll: true });
                       setSelectedPath(entry.path);
                       setContextMenu({ entry, x: event.clientX, y: event.clientY });
                     }}
@@ -385,6 +480,10 @@ export function SshExplorer({ collapsed }: SshExplorerProps) {
           onClose={() => setContextMenu(null)}
           onOpen={() => openEntry(contextMenu.entry)}
           onDownload={() => void downloadEntry(contextMenu.entry)}
+          onCopy={() => void copyEntry(contextMenu.entry)}
+          canPaste={!transferLabel}
+          pasteName={clipboardItem?.name}
+          onPaste={() => void pasteClipboard(contextMenu.entry)}
           onRename={() => { setContextMenu(null); setNameDialog({ mode: "rename", entry: contextMenu.entry }); }}
           onDelete={() => { setContextMenu(null); setDeleteTarget(contextMenu.entry); }}
         />

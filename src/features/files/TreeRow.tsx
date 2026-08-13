@@ -5,6 +5,7 @@ import { desktopGateway } from "../../app/services";
 import { useTreePathMouseDrag } from "../../hooks/useTreePathMouseDrag";
 import { useGitStore } from "../../store/useGitStore";
 import { findGitChange, gitStatusLetter, gitTreeStatus } from "../../domain/git/status";
+import { useFileClipboardStore } from "../../store/useFileClipboardStore";
 
 interface TreeRowProps {
   node: TreeNode;
@@ -30,6 +31,7 @@ export function TreeRow({ node, onContextMenu }: TreeRowProps) {
   const gitStatus = useGitStore((state) => gitTreeStatus(state.repositories, node.path));
   const ignored = useGitStore((state) => Boolean(state.ignoredPaths[node.path]));
   const openGitDiff = useWorkbenchStore((state) => state.openGitDiff);
+  const isCopied = useFileClipboardStore((state) => state.item?.source === "local" && state.item.path === node.path);
 
   const handleOpen = async () => {
     selectTreePath(node.path);
@@ -48,7 +50,7 @@ export function TreeRow({ node, onContextMenu }: TreeRowProps) {
   return (
     <>
       <button
-        className={`tree-row tree-row--${node.kind} ${isSelected ? "is-selected" : ""} ${pathDrag.isDragging ? "is-dragging" : ""} ${ignored ? "is-git-ignored" : ""}`}
+        className={`tree-row tree-row--${node.kind} ${isSelected ? "is-selected" : ""} ${isCopied ? "is-copied" : ""} ${pathDrag.isDragging ? "is-dragging" : ""} ${ignored ? "is-git-ignored" : ""}`}
         type="button"
         role="treeitem"
         aria-selected={isSelected}
@@ -62,6 +64,7 @@ export function TreeRow({ node, onContextMenu }: TreeRowProps) {
         onContextMenu={(event) => {
           event.preventDefault();
           event.stopPropagation();
+          event.currentTarget.focus({ preventScroll: true });
           // WebKit 右键按钮后可能保留文本选区；只清理锚点位于当前行的选区，
           // 避免影响编辑器中的正常文本选择。
           const selection = window.getSelection();
@@ -73,7 +76,12 @@ export function TreeRow({ node, onContextMenu }: TreeRowProps) {
           selectTreePath(node.path);
           onContextMenu(node, event.clientX, event.clientY);
         }}
-        onMouseDown={pathDrag.onMouseDown}
+        onMouseDown={(event) => {
+          // 拖拽逻辑会阻止 mousedown 默认行为；先显式接管焦点，确保随后 ⌘/Ctrl+C/V
+          // 属于文件树，而不是继续发送给先前聚焦的终端或编辑器。
+          event.currentTarget.focus({ preventScroll: true });
+          pathDrag.onMouseDown(event);
+        }}
       >
         <span className={`tree-chevron ${expandable && node.expanded ? "is-open" : ""}`}>
           {expandable ? <ChevronRight size={12} /> : null}

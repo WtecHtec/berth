@@ -1,6 +1,7 @@
 import type { AiSessionListResponse, TreeNode } from "../workbench/models";
 import type { CommandEnvironmentSettings } from "../environment/models";
 import type { SftpDirectory, SftpEntryKind, SftpTextFile, SshSite } from "../ssh/models";
+import type { SystemFileClipboardSnapshot } from "../files/fileClipboard";
 
 export interface TerminalCallbacks {
   onData(data: Uint8Array): void;
@@ -32,6 +33,9 @@ export interface DesktopGateway {
   pickFolder(): Promise<string | null>;
   pickFiles(): Promise<string[]>;
   pickSavePath(defaultName: string): Promise<string | null>;
+  readSystemFileClipboard(): Promise<SystemFileClipboardSnapshot>;
+  copyLocalPathToSystemClipboard(path: string): Promise<number>;
+  copySftpEntryToSystemClipboard(siteId: string, remotePath: string, kind: SftpEntryKind, controlPath?: string): Promise<number>;
   listDirectory(path: string): Promise<TreeNode[]>;
   searchFiles(roots: string[], query: string): Promise<TreeNode[]>;
   listAiSessions(roots: string[], limitPerProvider: number): Promise<AiSessionListResponse>;
@@ -40,6 +44,7 @@ export interface DesktopGateway {
   readSftpTextFile(siteId: string, path: string, controlPath?: string): Promise<SftpTextFile>;
   writeSftpTextFile(siteId: string, path: string, content: string, expected: Pick<SftpTextFile, "size" | "modified">, controlPath?: string): Promise<SftpTextFile>;
   uploadSftpPaths(siteId: string, directory: string, localPaths: string[], controlPath?: string): Promise<SftpDirectory>;
+  pasteLocalPathToSftp(siteId: string, directory: string, localPath: string, controlPath?: string): Promise<SftpDirectory>;
   downloadSftpFile(siteId: string, remotePath: string, localPath: string, controlPath?: string): Promise<void>;
   cacheSftpFile(siteId: string, remotePath: string, controlPath?: string): Promise<string>;
   releaseSftpCache(path: string): Promise<void>;
@@ -53,7 +58,19 @@ export interface DesktopGateway {
   stopHtmlPreview(previewId: string): Promise<void>;
   openPreviewInSystemBrowser(url: string): Promise<void>;
   createFile(directory: string, name: string): Promise<string>;
+  copyPath(sourcePath: string, destinationDirectory: string): Promise<string>;
+  downloadSftpEntry(siteId: string, remotePath: string, kind: SftpEntryKind, destinationDirectory: string, controlPath?: string): Promise<string>;
+  copySftpEntry(
+    sourceSiteId: string,
+    sourcePath: string,
+    sourceKind: SftpEntryKind,
+    sourceControlPath: string | undefined,
+    destinationSiteId: string,
+    destinationDirectory: string,
+    destinationControlPath?: string,
+  ): Promise<SftpDirectory>;
   renamePath(path: string, newName: string): Promise<string>;
+  moveToTrash(path: string): Promise<void>;
   revealInFinder(path: string): Promise<void>;
   createWindow(): Promise<void>;
   openInSystemTerminal(path: string): Promise<void>;

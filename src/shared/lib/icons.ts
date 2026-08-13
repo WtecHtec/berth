@@ -9,6 +9,7 @@ export {
   ChevronRight,
   ChevronsLeft,
   CirclePlus,
+  Clipboard,
   Code2,
   Copy,
   Ellipsis,
