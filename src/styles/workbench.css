@@ -17,7 +17,7 @@
 .split-divider:hover::after, .split-divider:active::after { background: rgba(102,181,255,.86); }
 .split-divider:focus-visible { z-index: 14; outline-offset: -1px; }
 .workbench-pane-slot { min-width: 0; min-height: 0; position: relative; overflow: hidden; background: var(--bg-panel); }
-.workbench-pane-slot.is-active::after { content: ""; position: absolute; z-index: 8; inset: 0; pointer-events: none; border: 1px solid rgba(102,181,255,.18); }
+.workbench-pane-slot.is-active::after { content: ""; position: absolute; z-index: 8; inset: 0; pointer-events: none; border: 1px solid rgba(117,190,255,.52); }
 .workbench-pane-slot.is-tab-drop-target::after { content: ""; position: absolute; z-index: 22; inset: 5px; pointer-events: none; border: 1px solid rgba(117,190,255,.78); border-radius: 7px; background: rgba(65,151,230,.08); }
 .workbench-pane-slot.is-tab-drop-target::before { content: "释放以移动标签"; position: absolute; z-index: 23; left: 50%; top: 50%; padding: 6px 9px; pointer-events: none; color: #e6f3ff; border: 1px solid rgba(126,195,255,.28); border-radius: 6px; background: rgba(27,48,66,.92); font-size: 8.5px; transform: translate(-50%, -50%); }
 .workbench-pane { width: 100%; height: 100%; display: grid; grid-template-rows: 34px minmax(0, 1fr); overflow: hidden; background: #14171b; }
@@ -31,7 +31,8 @@
 .workbench-tab:hover { color: var(--text-2); background: rgba(255,255,255,.025); }
 .workbench-tab.is-active { color: #e5e9ee; background: #14171b; }
 .workbench-tab.is-dragging { opacity: .42; }
-.workbench-tab.is-active::after { content: ""; position: absolute; inset: 0 9px auto; height: 2px; border-radius: 0 0 2px 2px; background: var(--blue); }
+.workbench-tab.is-active::after { content: ""; position: absolute; inset: 0 9px auto; height: 2px; border-radius: 0 0 2px 2px; background: #69737e; }
+.workbench-pane-slot.is-active .workbench-tab.is-active::after { background: var(--blue); }
 .dirty-dot { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--blue); }
 .tab-close { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; opacity: 0; }
 .workbench-tab:hover .tab-close, .workbench-tab.is-active .tab-close { opacity: .75; }
@@ -83,10 +84,14 @@ html.is-tab-dragging, html.is-tab-dragging * { cursor: grabbing !important; user
 .phrase-input-wrap:focus-within { color: var(--blue); border-color: rgba(102,181,255,.35); box-shadow: 0 0 0 3px rgba(102,181,255,.07); }
 .phrase-input-wrap input { flex: 1; min-width: 0; color: var(--text-2); border: 0; outline: 0; background: transparent; font-size: 10px; }
 .phrase-input-wrap input::placeholder { color: #59636e; }
-.phrase-hint { display: flex; align-items: center; gap: 3px; color: #59636e; font-size: 8px; }
+.phrase-hint { display: flex; align-items: center; gap: 3px; color: #66727f; font-size: 8px; white-space: nowrap; }
 .phrase-menu { position: absolute; z-index: 10; left: 9px; right: 9px; bottom: 45px; padding: 5px; border: 1px solid var(--hairline-strong); border-radius: 10px; background: rgba(29,33,39,.96); backdrop-filter: blur(24px) saturate(150%); box-shadow: 0 18px 45px rgba(0,0,0,.45); transform-origin: 32px bottom; animation: materialize 180ms ease-out; }
-.phrase-menu button { width: 100%; height: 42px; display: grid; grid-template-columns: 27px 1fr auto; align-items: center; gap: 7px; padding: 0 8px; color: var(--text-2); border: 0; border-radius: 7px; background: transparent; text-align: left; }
-.phrase-menu button.is-selected, .phrase-menu button:hover { background: var(--blue-soft); }
+.phrase-menu button { width: 100%; height: 42px; display: grid; grid-template-columns: 27px 1fr auto; align-items: center; gap: 7px; padding: 0 8px; color: var(--text-2); border: 1px solid transparent; border-radius: 7px; background: transparent; text-align: left; transition: border-color 110ms ease-out, background-color 110ms ease-out; }
+.phrase-menu button:hover { background: rgba(102,181,255,.07); }
+.phrase-menu button.is-selected { border-color: rgba(102,181,255,.3); background: rgba(55,142,224,.16); }
+.phrase-menu button.is-selected::after { content: "↵"; position: absolute; right: 9px; color: #87c8ff; font-size: 9px; }
+.phrase-menu button { position: relative; }
+.phrase-menu button.is-selected > em { padding-right: 13px; color: #91c9f8; }
 .phrase-icon { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; color: var(--blue); border-radius: 6px; background: rgba(102,181,255,.1); }
 .phrase-menu button > span:nth-child(2) { display: grid; gap: 1px; }
 .phrase-menu strong { color: var(--text-1); font-family: var(--font-mono); font-size: 10px; }
@@ -186,4 +191,5 @@ html.is-tab-dragging, html.is-tab-dragging * { cursor: grabbing !important; user
   .git-sidebar-heading .git-refresh-button.is-refreshing svg,
   .git-change-row__action.is-busy svg,
   .is-spinning { animation: none; opacity: .65; }
+  .phrase-menu button { transition: none; }
 }

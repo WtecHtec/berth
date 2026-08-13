@@ -39,6 +39,10 @@ export function LayoutPicker() {
     ? `${currentGrid.columns} × ${currentGrid.rows}`
     : FLEXIBLE_PRESETS.find((preset) => preset.id === currentPreset)?.label ?? "自定义";
   const gridPreview = hoveredGrid ?? currentGrid;
+  const previewingAnotherGrid = Boolean(hoveredGrid
+    && (!currentGrid
+      || hoveredGrid.rows !== currentGrid.rows
+      || hoveredGrid.columns !== currentGrid.columns));
 
   useEffect(() => {
     if (!open) return;
@@ -95,12 +99,16 @@ export function LayoutPicker() {
                 <span>工作区</span>
                 <strong>选择布局</strong>
               </div>
-              <em>{currentLabel}</em>
+              <em><Check size={10} />当前 · {currentLabel}</em>
             </div>
             <section className="layout-grid-section" aria-labelledby="regular-grid-heading">
               <div className="layout-section-heading">
                 <strong id="regular-grid-heading">规则网格</strong>
-                <span>{gridPreview ? `${gridPreview.columns} × ${gridPreview.rows}` : "选择"}</span>
+                <span className={previewingAnotherGrid ? "is-previewing" : currentGrid ? "is-current" : ""}>
+                  {!previewingAnotherGrid && currentGrid ? <Check size={9} /> : null}
+                  {gridPreview ? `${gridPreview.columns} × ${gridPreview.rows}` : "选择"}
+                  {previewingAnotherGrid ? " 预览" : currentGrid ? " 当前" : ""}
+                </span>
               </div>
               <div
                 className="layout-grid-options"
@@ -111,11 +119,13 @@ export function LayoutPicker() {
                   const row = Math.floor(index / MAX_GRID_TRACKS) + 1;
                   const column = index % MAX_GRID_TRACKS + 1;
                   const highlighted = Boolean(gridPreview && row <= gridPreview.rows && column <= gridPreview.columns);
+                  const current = Boolean(currentGrid && row <= currentGrid.rows && column <= currentGrid.columns);
+                  const currentAnchor = Boolean(currentGrid && row === currentGrid.rows && column === currentGrid.columns);
                   return (
                     <button
                       type="button"
                       key={`${column}x${row}`}
-                      className={highlighted ? "is-highlighted" : ""}
+                      className={`${highlighted ? "is-highlighted" : ""} ${current ? "is-current-grid" : ""} ${currentAnchor ? "is-current-grid-anchor" : ""}`}
                       aria-label={`设置为 ${column} 列 ${row} 行`}
                       onPointerEnter={() => setHoveredGrid({ rows: row, columns: column })}
                       onFocus={() => setHoveredGrid({ rows: row, columns: column })}
@@ -141,6 +151,7 @@ export function LayoutPicker() {
                   >
                     <LayoutPresetPreview preset={preset.id} />
                     <span>{preset.label}</span>
+                    {currentPreset === preset.id ? <span className="layout-preset-selection-mark" aria-hidden="true"><Check size={9} /></span> : null}
                   </button>
                 ))}
               </div>
