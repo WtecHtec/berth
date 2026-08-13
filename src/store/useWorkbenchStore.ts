@@ -3,10 +3,12 @@ import type { GitDiffTarget } from "../domain/git/models";
 import type { SftpEntry, SshSite } from "../domain/ssh/models";
 import type {
   AiSessionSummary,
+  PinnedTerminalRecord,
   QuickPhrase,
   QuickPhraseActionResult,
   QuickPhraseDraft,
   TerminalInputRequest,
+  TerminalCacheActionResult,
   TerminalSession,
   TreeNode,
   WorkbenchGridLayout,
@@ -28,12 +30,17 @@ import {
 import { validateQuickPhraseDraft } from "../domain/phrases/phraseRules";
 import { loadQuickPhrases, saveQuickPhrases } from "../infrastructure/persistence/quickPhraseRepository";
 import {
+  loadPinnedTerminals,
+  savePinnedTerminals,
+} from "../infrastructure/persistence/pinnedTerminalRepository";
+import {
   loadWorkbenchLayout,
   saveWorkbenchLayout,
 } from "../infrastructure/persistence/workbenchLayoutRepository";
 import { buildAiSessionResumeCommand } from "../infrastructure/terminal/aiSessionCommand";
 import { findTreeNode, setTreeNodeChildren, toggleTreeNode } from "../shared/utils/tree";
 import { quoteShellPath } from "../shared/utils/shell";
+import { isSameOrDescendantPath } from "../shared/utils/path";
 
 type SidebarView = "files" | "git" | "ssh";
 
@@ -44,6 +51,7 @@ interface WorkbenchState {
   workspaceLoading: boolean;
   workspaceError: string | null;
   sessions: TerminalSession[];
+  pinnedTerminals: PinnedTerminalRecord[];
   tree: TreeNode[];
   selectedTreePath: string;
   panes: WorkbenchPane[];
@@ -95,6 +103,13 @@ interface WorkbenchState {
   updatePhrase(id: string, draft: QuickPhraseDraft): QuickPhraseActionResult;
   deletePhrase(id: string): QuickPhraseActionResult;
   replacePhrases(phrases: QuickPhrase[]): void;
+  pinTerminal(sessionId: string): TerminalCacheActionResult;
+  unpinTerminal(sessionId: string): TerminalCacheActionResult;
+  removePinnedTerminal(recordId: string): TerminalCacheActionResult;
+  renameTerminal(sessionId: string, title: string): TerminalCacheActionResult;
+  renamePinnedTerminal(recordId: string, title: string): TerminalCacheActionResult;
+  openPinnedTerminal(recordId: string): TerminalCacheActionResult;
+  replacePinnedTerminals(records: PinnedTerminalRecord[]): void;
   createTerminal(): void;
   createTerminalAt(cwd: string): void;
   createSshTerminal(site: SshSite): void;
@@ -110,6 +125,23 @@ const initialLayout = (): WorkbenchLayoutNode => ({ type: "pane", paneId: "pane-
 
 function pathName(path: string) {
   return path.split(/[\\/]/u).filter(Boolean).at(-1) ?? path;
+}
+
+const MAX_TERMINAL_TITLE_LENGTH = 80;
+
+function normalizeTerminalTitle(title: string) {
+  const value = title.trim();
+  if (!value) return { ok: false, error: "终端名称不能为空" } as const;
+  if (value.length > MAX_TERMINAL_TITLE_LENGTH) {
+    return { ok: false, error: `终端名称不能超过 ${MAX_TERMINAL_TITLE_LENGTH} 个字符` } as const;
+  }
+  return { ok: true, value } as const;
+}
+
+function resolveWorkspaceRoot(cwd: string, roots: string[]) {
+  return roots
+    .filter((root) => isSameOrDescendantPath(cwd, root))
+    .sort((first, second) => second.length - first.length)[0] ?? roots[0] ?? cwd;
 }
 
 function updateTab(
@@ -171,6 +203,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
   workspaceLoading: false,
   workspaceError: null,
   sessions: [],
+  pinnedTerminals: loadPinnedTerminals(),
   tree: [],
   selectedTreePath: "",
   panes: [initialPane()],
@@ -652,6 +685,199 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
     }
   },
   replacePhrases(phrases) { set({ phrases }); },
+  pinTerminal(sessionId) {
+    const state = get();
+    const session = state.sessions.find((item) => item.id === sessionId);
+    if (!session) return { ok: false, error: "终端会话不存在" };
+    if (session.ssh || session.aiSession) {
+      return { ok: false, error: "SSH 与 AI 会话请通过各自的历史列表重新打开" };
+    }
+    if (session.pinnedTerminalId && state.pinnedTerminals.some((record) => record.id === session.pinnedTerminalId)) {
+      return { ok: true };
+    }
+
+    const record: PinnedTerminalRecord = {
+      id: `pinned-terminal-${crypto.randomUUID()}`,
+      title: session.title,
+      cwd: session.cwd,
+      workspaceRoot: resolveWorkspaceRoot(session.cwd, state.workspaceRoots),
+      pinnedAt: new Date().toISOString(),
+    };
+    const pinnedTerminals = [record, ...state.pinnedTerminals];
+    try {
+      savePinnedTerminals(pinnedTerminals);
+      set({
+        pinnedTerminals,
+        sessions: state.sessions.map((item) => item.id === sessionId
+          ? { ...item, pinnedTerminalId: record.id }
+          : item),
+      });
+      return { ok: true };
+    } catch (cause) {
+      return { ok: false, error: cause instanceof Error ? cause.message : String(cause) };
+    }
+  },
+  unpinTerminal(sessionId) {
+    const state = get();
+    const session = state.sessions.find((item) => item.id === sessionId);
+    if (!session) return { ok: false, error: "终端会话不存在" };
+    if (!session.pinnedTerminalId) return { ok: true };
+    const pinnedTerminals = state.pinnedTerminals.filter((record) => record.id !== session.pinnedTerminalId);
+    try {
+      savePinnedTerminals(pinnedTerminals);
+      set({
+        pinnedTerminals,
+        sessions: state.sessions.map((item) => item.id === sessionId
+          ? { ...item, pinnedTerminalId: undefined }
+          : item),
+      });
+      return { ok: true };
+    } catch (cause) {
+      return { ok: false, error: cause instanceof Error ? cause.message : String(cause) };
+    }
+  },
+  removePinnedTerminal(recordId) {
+    const state = get();
+    const pinnedTerminals = state.pinnedTerminals.filter((record) => record.id !== recordId);
+    try {
+      savePinnedTerminals(pinnedTerminals);
+      set({
+        pinnedTerminals,
+        sessions: state.sessions.map((session) => session.pinnedTerminalId === recordId
+          ? { ...session, pinnedTerminalId: undefined }
+          : session),
+      });
+      return { ok: true };
+    } catch (cause) {
+      return { ok: false, error: cause instanceof Error ? cause.message : String(cause) };
+    }
+  },
+  renameTerminal(sessionId, title) {
+    const validation = normalizeTerminalTitle(title);
+    if (!validation.ok) return validation;
+    const state = get();
+    const session = state.sessions.find((item) => item.id === sessionId);
+    if (!session) return { ok: false, error: "终端会话不存在" };
+    const pinnedTerminals = session.pinnedTerminalId
+      ? state.pinnedTerminals.map((record) => record.id === session.pinnedTerminalId
+        ? { ...record, title: validation.value }
+        : record)
+      : state.pinnedTerminals;
+    try {
+      if (session.pinnedTerminalId) savePinnedTerminals(pinnedTerminals);
+      set({
+        pinnedTerminals,
+        sessions: state.sessions.map((item) => item.id === sessionId
+          ? { ...item, title: validation.value }
+          : item),
+        panes: state.panes.map((pane) => ({
+          ...pane,
+          tabs: pane.tabs.map((tab) => tab.sessionId === sessionId
+            ? { ...tab, title: validation.value }
+            : tab),
+        })),
+      });
+      return { ok: true };
+    } catch (cause) {
+      return { ok: false, error: cause instanceof Error ? cause.message : String(cause) };
+    }
+  },
+  renamePinnedTerminal(recordId, title) {
+    const validation = normalizeTerminalTitle(title);
+    if (!validation.ok) return validation;
+    const state = get();
+    if (!state.pinnedTerminals.some((record) => record.id === recordId)) {
+      return { ok: false, error: "置顶终端不存在" };
+    }
+    const pinnedTerminals = state.pinnedTerminals.map((record) => record.id === recordId
+      ? { ...record, title: validation.value }
+      : record);
+    try {
+      savePinnedTerminals(pinnedTerminals);
+      const renamedSessionIds = new Set(state.sessions
+        .filter((session) => session.pinnedTerminalId === recordId)
+        .map((session) => session.id));
+      set({
+        pinnedTerminals,
+        sessions: state.sessions.map((session) => session.pinnedTerminalId === recordId
+          ? { ...session, title: validation.value }
+          : session),
+        panes: state.panes.map((pane) => ({
+          ...pane,
+          tabs: pane.tabs.map((tab) => tab.sessionId && renamedSessionIds.has(tab.sessionId)
+            ? { ...tab, title: validation.value }
+            : tab),
+        })),
+      });
+      return { ok: true };
+    } catch (cause) {
+      return { ok: false, error: cause instanceof Error ? cause.message : String(cause) };
+    }
+  },
+  openPinnedTerminal(recordId) {
+    const state = get();
+    const record = state.pinnedTerminals.find((item) => item.id === recordId);
+    if (!record) return { ok: false, error: "置顶终端不存在" };
+    if (!state.workspaceRoots.some((root) => isSameOrDescendantPath(record.cwd, root))) {
+      return { ok: false, error: "该终端不属于当前打开的文件夹" };
+    }
+    const existing = state.sessions.find((session) => session.pinnedTerminalId === recordId);
+    if (existing) {
+      get().focusSession(existing.id);
+      return { ok: true };
+    }
+
+    // 缓存只负责重新创建工作目录相同的新 PTY，不恢复已经结束的进程或输出。
+    const id = `terminal-${crypto.randomUUID()}`;
+    const session: TerminalSession = {
+      id,
+      title: record.title,
+      project: pathName(record.cwd),
+      cwd: record.cwd,
+      branch: "",
+      status: "running",
+      processLabel: "shell",
+      lastActivity: "刚刚",
+      color: "#75baff",
+      pinnedTerminalId: record.id,
+    };
+    set((current) => {
+      const pane = current.panes.find((item) => item.id === current.activePaneId) ?? current.panes[0];
+      const tab = { id: `tab-${id}`, title: session.title, kind: "terminal" as const, sessionId: id };
+      return {
+        sessions: [session, ...current.sessions],
+        activePaneId: pane.id,
+        panes: current.panes.map((item) => item.id === pane.id
+          ? { ...item, tabs: [...item.tabs, tab], activeTabId: tab.id }
+          : item),
+      };
+    });
+    return { ok: true };
+  },
+  replacePinnedTerminals(records) {
+    // 跨窗口同步时同时更新运行会话和标签标题，避免同一配置出现两个名称。
+    set((state) => {
+      const recordById = new Map(records.map((record) => [record.id, record]));
+      const sessions = state.sessions.map((session) => {
+        if (!session.pinnedTerminalId) return session;
+        const record = recordById.get(session.pinnedTerminalId);
+        return record
+          ? { ...session, title: record.title }
+          : { ...session, pinnedTerminalId: undefined };
+      });
+      const titleBySessionId = new Map(sessions.map((session) => [session.id, session.title]));
+      return {
+        pinnedTerminals: records,
+        sessions,
+        panes: state.panes.map((pane) => ({
+          ...pane,
+          tabs: pane.tabs.map((tab) => tab.sessionId && titleBySessionId.has(tab.sessionId)
+            ? { ...tab, title: titleBySessionId.get(tab.sessionId)! }
+            : tab),
+        })),
+      };
+    });
+  },
   createTerminal() {
     const cwd = get().workspaceRoots[0];
     if (!cwd) return;

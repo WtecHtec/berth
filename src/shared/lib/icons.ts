@@ -28,6 +28,7 @@ export {
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
+  Pin,
   Play,
   Plus,
   RefreshCw,

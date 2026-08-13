@@ -13,6 +13,8 @@ export interface TerminalSession {
   processLabel: string;
   lastActivity: string;
   color: string;
+  /** 关联的置顶启动配置；关闭 PTY 后配置仍可用于重新创建终端。 */
+  pinnedTerminalId?: string;
   aiSession?: Pick<AiSessionSummary, "id" | "provider">;
   ssh?: {
     siteId: string;
@@ -21,6 +23,19 @@ export interface TerminalSession {
     controlPath?: string;
   };
 }
+
+/** 可跨应用重启保留的本地终端启动配置，不包含进程和输出内容。 */
+export interface PinnedTerminalRecord {
+  id: string;
+  title: string;
+  cwd: string;
+  workspaceRoot: string;
+  pinnedAt: string;
+}
+
+export type TerminalCacheActionResult =
+  | { ok: true }
+  | { ok: false; error: string };
 
 /** 等待写入指定 PTY 的一次可编辑输入请求。 */
 export interface TerminalInputRequest {

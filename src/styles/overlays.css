@@ -14,6 +14,7 @@
 .file-name-dialog p { margin: 5px 0 14px; overflow: hidden; color: var(--text-3); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .file-name-dialog input { width: 100%; height: 32px; padding: 0 9px; color: var(--text-1); border: 1px solid var(--hairline-strong); border-radius: 7px; outline: 0; background: rgba(0,0,0,.18); font-family: var(--font-mono); font-size: 10px; }
 .file-name-dialog input:focus { border-color: rgba(102,181,255,.48); box-shadow: 0 0 0 3px rgba(102,181,255,.08); }
+.terminal-rename-error { margin-top: 7px; color: #f0aaa7; font-size: 9px; }
 .file-name-dialog footer { display: flex; justify-content: flex-end; gap: 7px; margin-top: 15px; }
 .button { height: 30px; padding: 0 13px; border-radius: 7px; font-size: 10px; font-weight: 610; }
 .button:disabled { opacity: .45; }
