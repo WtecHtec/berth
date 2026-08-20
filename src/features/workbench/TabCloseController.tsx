@@ -22,20 +22,15 @@ interface PendingClose {
 }
 
 type TabSaver = () => Promise<void>;
+type TabCloseCleanup = () => void;
 
 interface TabCloseControllerValue {
-  registerTabSaver(tabId: string, saver: TabSaver): () => void;
+  registerTabSaver(tabId: string, saver: TabSaver, cleanup?: TabCloseCleanup): () => void;
   requestCloseTab(paneId: string, tabId: string): void;
   requestCloseOtherTabs(paneId: string, keptTabId: string): void;
 }
 
 const TabCloseControllerContext = createContext<TabCloseControllerValue | null>(null);
-
-function closeTargets(targets: CloseTarget[]) {
-  for (const target of targets) {
-    useWorkbenchStore.getState().closeTab(target.paneId, target.tabId);
-  }
-}
 
 function resolveDirtyTargets(targets: CloseTarget[]): DirtyCloseTarget[] {
   const { panes } = useWorkbenchStore.getState();
@@ -48,14 +43,25 @@ function resolveDirtyTargets(targets: CloseTarget[]): DirtyCloseTarget[] {
 /** 协调标签关闭与文件保存，确保任何关闭入口都不会绕过未保存保护。 */
 export function TabCloseController({ children }: { children: ReactNode }) {
   const saversRef = useRef(new Map<string, TabSaver>());
+  const closeCleanupsRef = useRef(new Map<string, TabCloseCleanup>());
   const closeFlowActiveRef = useRef(false);
   const [pending, setPending] = useState<PendingClose | null>(null);
 
-  const registerTabSaver = useCallback((tabId: string, saver: TabSaver) => {
+  const registerTabSaver = useCallback((tabId: string, saver: TabSaver, cleanup?: TabCloseCleanup) => {
     saversRef.current.set(tabId, saver);
+    if (cleanup) closeCleanupsRef.current.set(tabId, cleanup);
     return () => {
       if (saversRef.current.get(tabId) === saver) saversRef.current.delete(tabId);
+      if (cleanup && closeCleanupsRef.current.get(tabId) === cleanup) closeCleanupsRef.current.delete(tabId);
     };
+  }, []);
+
+  const closeTargets = useCallback((targets: CloseTarget[]) => {
+    for (const target of targets) {
+      // 只有真正关闭时才清理草稿；多文件流程中途取消不会丢失已编辑内容。
+      closeCleanupsRef.current.get(target.tabId)?.();
+      useWorkbenchStore.getState().closeTab(target.paneId, target.tabId);
+    }
   }, []);
 
   const requestCloseTargets = useCallback((targets: CloseTarget[]) => {
@@ -67,7 +73,7 @@ export function TabCloseController({ children }: { children: ReactNode }) {
     }
     closeFlowActiveRef.current = true;
     setPending({ targets, dirtyTargets, dirtyIndex: 0, saving: false, error: null });
-  }, []);
+  }, [closeTargets]);
 
   const requestCloseTab = useCallback((paneId: string, tabId: string) => {
     requestCloseTargets([{ paneId, tabId }]);
@@ -114,7 +120,19 @@ export function TabCloseController({ children }: { children: ReactNode }) {
         error: reason instanceof Error ? reason.message : String(reason),
       });
     }
-  }, [pending]);
+  }, [closeTargets, pending]);
+
+  const discardAndContinue = useCallback(() => {
+    if (!pending || pending.saving) return;
+    const nextIndex = pending.dirtyIndex + 1;
+    if (nextIndex < pending.dirtyTargets.length) {
+      setPending({ ...pending, dirtyIndex: nextIndex, error: null });
+      return;
+    }
+    closeFlowActiveRef.current = false;
+    setPending(null);
+    closeTargets(pending.targets);
+  }, [closeTargets, pending]);
 
   useEffect(() => {
     if (!pending) return;
@@ -152,7 +170,7 @@ export function TabCloseController({ children }: { children: ReactNode }) {
                 <h2 id="unsaved-dialog-title">保存“{currentTarget.tab.title}”后关闭？</h2>
               </div>
             </div>
-            <p id="unsaved-dialog-description">为避免丢失修改，保存成功前不会关闭标签。</p>
+            <p id="unsaved-dialog-description">你可以保存修改、关闭且不保存，或取消本次关闭。</p>
             {pending.dirtyTargets.length > 1 ? (
               <div className="unsaved-changes-dialog__progress">
                 待保存文件 {pending.dirtyIndex + 1} / {pending.dirtyTargets.length}
@@ -161,6 +179,9 @@ export function TabCloseController({ children }: { children: ReactNode }) {
             {pending.error ? <div className="unsaved-changes-dialog__error" role="alert">保存失败：{pending.error}</div> : null}
             <footer>
               <button className="button button--secondary" type="button" disabled={pending.saving} onClick={cancelClose}>取消</button>
+              <button className="button button--danger" type="button" disabled={pending.saving} onClick={discardAndContinue}>
+                {pending.dirtyIndex + 1 < pending.dirtyTargets.length ? "不保存并继续" : "关闭且不保存"}
+              </button>
               <button autoFocus className="button button--primary" type="button" disabled={pending.saving} onClick={() => void saveAndContinue()}>
                 {pending.saving ? "正在保存…" : pending.dirtyTargets.length > 1 ? "保存并继续" : "保存并关闭"}
               </button>

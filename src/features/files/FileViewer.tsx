@@ -50,7 +50,11 @@ export function FileViewer({ tab, active }: { tab: WorkbenchTab; active: boolean
     setTabDirty(tab.id, false);
   }, [draft, save, saving, setTabDirty, tab.dirty, tab.id]);
 
-  useEffect(() => registerTabSaver(tab.id, saveDraft), [registerTabSaver, saveDraft, tab.id]);
+  useEffect(() => registerTabSaver(
+    tab.id,
+    saveDraft,
+    () => clearFileDraft(tab.id),
+  ), [registerTabSaver, saveDraft, tab.id]);
 
   useFileSaveShortcut(active && editable && !previewing, saveDraft);
 

@@ -111,7 +111,11 @@ export function SftpFileViewer({ tab, active }: { tab: WorkbenchTab; active: boo
     }
   }, [draft, original, saving, setTabDirty, tab.dirty, tab.id, target, updateMetadata]);
 
-  useEffect(() => registerTabSaver(tab.id, saveDraft), [registerTabSaver, saveDraft, tab.id]);
+  useEffect(() => registerTabSaver(
+    tab.id,
+    saveDraft,
+    () => clearFileDraft(tab.id),
+  ), [registerTabSaver, saveDraft, tab.id]);
   useFileSaveShortcut(active && editable, saveDraft);
 
   const download = useCallback(async () => {
